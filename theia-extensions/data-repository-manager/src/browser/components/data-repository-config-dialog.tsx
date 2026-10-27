@@ -90,7 +90,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             this.render(); return;
         }
         const selectedProvider = this.providers.find(provider => provider.id === this.providerIdValue);
-        if (!this.providerIdValue) {
+        if (!selectedProvider) {
             this.errorMsg = nls.localize('rockit/dataRepository/providerRequired', 'Repository Type is required.');
             this.render(); return;
         }
@@ -197,6 +197,36 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         if (!this.reactRoot) {
             this.reactRoot = createRoot(this.contentNode);
         }
+        const selectedProviderAvailable = this.providers.some(
+            provider => provider.id === this.providerIdValue
+        );
+        const providerAvailabilityMessage = this.providers.length === 0
+            ? nls.localize(
+                'rockit/dataRepository/noProvidersInstalledMessage',
+                'No repository provider extensions are installed. Install one from the Extensions view before saving this connection.'
+            )
+            : this.providerIdValue && !selectedProviderAvailable
+                ? nls.localize(
+                    'rockit/dataRepository/configuredProviderUnavailable',
+                    'The configured repository type is unavailable. Install its provider extension or select another repository type.'
+                )
+                : undefined;
+        const saveDisabledReason = this.isTesting
+            ? nls.localize(
+                'rockit/dataRepository/connectionBeingVerified',
+                'The repository connection is being verified.'
+            )
+            : this.providers.length === 0
+                ? nls.localize(
+                    'rockit/dataRepository/installProviderBeforeSaving',
+                    'Install a repository provider extension before saving this connection.'
+                )
+                : !selectedProviderAvailable
+                    ? nls.localize(
+                        'rockit/dataRepository/selectProviderBeforeSaving',
+                        'Select a repository type before saving this connection.'
+                    )
+                    : undefined;
 
         this.reactRoot.render(
             <div className="data-repo-config">
@@ -225,6 +255,16 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                         </div>
                     )}
 
+                    {providerAvailabilityMessage && (
+                        <div className="data-repo-config__error" role="alert">
+                            <ErrorOutlineIcon fontSize="small" />
+                            <span>
+                                <strong>{nls.localize('rockit/dataRepository/actionRequired', 'Action required')}:</strong>{' '}
+                                {providerAvailabilityMessage}
+                            </span>
+                        </div>
+                    )}
+
                     <div className="data-repo-config__form">
                         
                         <div>
@@ -239,28 +279,34 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                             />
                         </div>
 
-                        {this.providers.length > 0 && (
-                            <div>
-                                <label className="data-repo-config__label">
-                                    {nls.localize('rockit/dataRepository/providerType', 'Repository Type')}
-                                </label>
-                                <select
-                                    className="theia-select data-repo-config__input"
-                                    value={this.providerIdValue}
-                                    disabled={this.isTesting}
-                                    onChange={(event) => this.changeProvider(event.target.value)}
-                                >
-                                    <option value="" disabled>
-                                        {nls.localize('rockit/dataRepository/selectProvider', 'Select a repository type')}
+                        <div>
+                            <label className="data-repo-config__label">
+                                {nls.localize('rockit/dataRepository/providerType', 'Repository Type')}
+                            </label>
+                            <select
+                                className="theia-select data-repo-config__input"
+                                value={selectedProviderAvailable ? this.providerIdValue : ''}
+                                disabled={this.isTesting || this.providers.length === 0}
+                                onChange={(event) => this.changeProvider(event.target.value)}
+                            >
+                                <option value="" disabled>
+                                    {this.providers.length === 0
+                                        ? nls.localize(
+                                            'rockit/dataRepository/noProvidersInstalled',
+                                            'No repository types installed'
+                                        )
+                                        : nls.localize(
+                                            'rockit/dataRepository/selectProvider',
+                                            'Select a repository type'
+                                        )}
+                                </option>
+                                {this.providers.map(provider => (
+                                    <option key={provider.id} value={provider.id}>
+                                        {provider.displayName}
                                     </option>
-                                    {this.providers.map(provider => (
-                                        <option key={provider.id} value={provider.id}>
-                                            {provider.displayName}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
+                                ))}
+                            </select>
+                        </div>
 
                         {this.crosswalks.length > 0 && (
                             <div>
@@ -375,16 +421,23 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                     >
                         {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>
-                    <button 
-                        className="theia-button main data-repo-config__btn-save"
-                        onClick={() => this.handleSaveAttempt()}
-                        disabled={this.isTesting}
+                    <span
+                        className={`data-repo-config__save-tooltip${
+                            saveDisabledReason ? ' data-repo-config__save-tooltip--disabled' : ''
+                        }`}
+                        title={saveDisabledReason}
                     >
-                        {this.isTesting && <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} />}
-                        {this.isTesting
-                            ? nls.localize('rockit/dataRepository/verifying', 'Verifying...')
-                            : nls.localize('rockit/dataRepository/save', 'Save')}
-                    </button>
+                        <button
+                            className="theia-button main data-repo-config__btn-save"
+                            onClick={() => this.handleSaveAttempt()}
+                            disabled={!!saveDisabledReason}
+                        >
+                            {this.isTesting && <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} />}
+                            {this.isTesting
+                                ? nls.localize('rockit/dataRepository/verifying', 'Verifying...')
+                                : nls.localize('rockit/dataRepository/save', 'Save')}
+                        </button>
+                    </span>
                 </div>
             </div>
         );

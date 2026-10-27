@@ -173,3 +173,15 @@
     color: var(--theia-button-foreground);
     text-align: center;
 }
+
+.data-repo-config__save-tooltip {
+    display: inline-flex;
+}
+
+.data-repo-config__save-tooltip--disabled {
+    cursor: help;
+}
+
+.data-repo-config__save-tooltip--disabled .data-repo-config__btn-save {
+    pointer-events: none;
+}

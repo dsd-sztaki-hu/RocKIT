@@ -2,10 +2,42 @@
   "name": "arp-repository-provider",
   "displayName": "RocKIT ARP Repository Provider",
   "description": "Reference ARP repository provider for RocKIT.",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "rockit",
   "license": "Apache-2.0",
   "private": true,
+  "homepage": "https://dsd-sztaki-hu.github.io/RocKIT/",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
+  "contributors": [
+    {
+      "name": "Kadosa Nagy",
+      "email": "nagykadosa@sztaki.hu"
+    }
+  ],
+  "bugs": {
+    "url": "https://github.com/dsd-sztaki-hu/RocKIT/issues",
+    "email": "rockit@dsd.sztaki.hu"
+  },
+  "keywords": [
+    "ro-crate",
+    "research-data",
+    "repository",
+    "arp",
+    "rockit"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dsd-sztaki-hu/RocKIT.git",
+    "directory": "repository-plugins/arp-repository-provider"
+  },
+  "files": [
+    "extension.js",
+    "src/**",
+    "README.md"
+  ],
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -14,6 +46,7 @@
   ],
   "main": "./extension.js",
   "scripts": {
+    "package:vsix": "vsce package --no-dependencies --skip-license",
     "test": "jest --runInBand"
   },
   "devDependencies": {

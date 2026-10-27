@@ -55,6 +55,16 @@ Repository tests are included in `yarn test:unit` and can also be run separately
     yarn --cwd repository-plugins/dataverse-repository-provider test
     yarn --cwd repository-plugins/zenodo-repository-provider test
 
+Package all repository providers as locally installable VSIX files with:
+
+    yarn package:repository-plugins
+
+The packages are written to `dist/repository-plugins`. In RocKIT, open the
+Extensions view, choose **Views > Install from VSIX...**, and select the desired
+file. The provider activates after RocKIT reloads the extension host. Repository
+providers listed in `rockitBundledPlugins` are also staged as built-in
+extensions by `yarn download:plugins` and included in packaged RocKIT builds.
+
 Electron E2E tests use Playwright and require a built application:
 
     yarn build:electron

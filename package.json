@@ -15,7 +15,7 @@
   },
   "bugs": {
     "url": "https://github.com/dsd-sztaki-hu/RocKIT/issues",
-    "email": "zoltan.toth@sztaki.hu"
+    "email": "rockit@dsd.sztaki.hu"
   },
   "keywords": [
     "ro-crate",
@@ -78,6 +78,7 @@
     "test:unit": "node scripts/run-unit-tests.js",
     "test:data-repository-manager": "yarn workspace data-repository-manager test --runInBand",
     "test:repository-plugins": "yarn --cwd repository-plugins/arp-repository-provider test && yarn --cwd repository-plugins/dataverse-repository-provider test && yarn --cwd repository-plugins/zenodo-repository-provider test",
+    "package:repository-plugins": "node scripts/package-repository-plugins.js",
     "test:integration:mcp": "yarn workspace @arpproject/rocrate-mcp-server test:all",
     "test:crosswalk": "yarn workspace data-repository-manager crosswalk:check",
     "test:integration": "node scripts/run-integration-tests.js",
@@ -121,7 +122,8 @@
     "node-gyp": "11.5.0",
     "esbuild": "^0.28.2",
     "esbuild-plugin-copy": "^2.1.1",
-    "esbuild-plugins-node-modules-polyfill": "^1.8.3"
+    "esbuild-plugins-node-modules-polyfill": "^1.8.3",
+    "@vscode/vsce": "4.0.0"
   },
   "workspaces": [
     "dev-packages/*",

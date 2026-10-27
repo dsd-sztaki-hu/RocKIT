@@ -14,7 +14,7 @@
   },
   "bugs": {
     "url": "https://github.com/dsd-sztaki-hu/RocKIT/issues",
-    "email": "zoltan.toth@sztaki.hu"
+    "email": "rockit@dsd.sztaki.hu"
   },
   "license": "Apache-2.0",
   "contributors": [
@@ -34,6 +34,7 @@
     "@theia/messages": "1.76.0",
     "@theia/monaco": "1.76.0",
     "@theia/plugin-ext-vscode": "1.76.0",
+    "@theia/vsx-registry": "1.76.0",
     "@theia/preferences": "1.76.0",
     "@theia/process": "1.76.0",
     "@theia/terminal": "1.76.0",

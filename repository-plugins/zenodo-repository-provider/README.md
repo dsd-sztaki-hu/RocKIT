@@ -47,7 +47,8 @@ Run its focused tests with:
 yarn --cwd repository-plugins/zenodo-repository-provider test
 ```
 
-RocKIT currently has no user-facing extension installation flow. Reference
-repository providers that should ship with the application are therefore listed
-in the root `rockitBundledPlugins` configuration. `yarn download:plugins` builds
-and stages those local VS Code plugins beside the plugins downloaded by Theia.
+Repository providers that ship with RocKIT are listed in the root
+`rockitBundledPlugins` configuration. `yarn download:plugins` stages them as
+built-in extensions. Run `yarn package:repository-plugins` at the repository
+root to additionally create distributable packages in
+`dist/repository-plugins`.
