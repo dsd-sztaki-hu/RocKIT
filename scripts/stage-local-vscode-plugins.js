@@ -48,6 +48,14 @@ function copyPlugin(source, target) {
   })
 }
 
+function removeStalePluginCopies(expectedId, extensionName) {
+  for (const entry of fs.readdirSync(pluginsRoot, { withFileTypes: true })) {
+    if (entry.isDirectory() && entry.name !== expectedId && entry.name.endsWith(`.${extensionName}`)) {
+      fs.rmSync(path.join(pluginsRoot, entry.name), { recursive: true, force: true })
+    }
+  }
+}
+
 fs.mkdirSync(pluginsRoot, { recursive: true })
 for (const [expectedId, configuredSource] of Object.entries(bundledPlugins)) {
   if (typeof configuredSource !== 'string') {
@@ -67,6 +75,7 @@ for (const [expectedId, configuredSource] of Object.entries(bundledPlugins)) {
   }
 
   buildPlugin(source, manifest)
+  removeStalePluginCopies(expectedId, manifest.name)
   copyPlugin(source, path.join(pluginsRoot, expectedId))
   console.log(`Staged bundled VS Code plugin ${expectedId}.`)
 }

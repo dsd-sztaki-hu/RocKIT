@@ -68,7 +68,7 @@ describe('DataRepositoryConfigDialog', () => {
     const dialog = renderDialog([{
       id: 'arp',
       displayName: 'ARP',
-      extensionId: 'rockit.arp-repository-provider',
+      extensionId: 'SZTAKI-DSD.arp-repository-provider',
       protocolVersion: '1.0',
       operations: { validate: 'rockit.arp.validate' },
     }])

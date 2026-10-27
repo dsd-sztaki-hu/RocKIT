@@ -112,7 +112,7 @@ const createWidget = () => {
   const providers = [{
     id: 'dataverse',
     displayName: 'Dataverse',
-    extensionId: 'rockit.dataverse-repository-provider',
+    extensionId: 'SZTAKI-DSD.dataverse-repository-provider',
     protocolVersion: '1.0',
     operations: { validate: 'rockit.dataverse.validate' },
   }]

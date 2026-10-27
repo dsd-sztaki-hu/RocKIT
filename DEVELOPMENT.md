@@ -64,6 +64,9 @@ Extensions view, choose **Views > Install from VSIX...**, and select the desired
 file. The provider activates after RocKIT reloads the extension host. Repository
 providers listed in `rockitBundledPlugins` are also staged as built-in
 extensions by `yarn download:plugins` and included in packaged RocKIT builds.
+Both `yarn build:electron` and `yarn rebuild:electron` regenerate these VSIX
+files. A successful package replaces the same-version file and removes older
+versions of that provider from the output directory.
 
 Electron E2E tests use Playwright and require a built application:
 

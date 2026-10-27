@@ -140,7 +140,7 @@ describe('RepositoryProviderService', () => {
   it('maps Zenodo export metadata before invoking the provider', async () => {
     const registry = new RepositoryProviderRegistry()
     registry.register({
-      id: 'zenodo', displayName: 'Zenodo', extensionId: 'rockit.zenodo-repository-provider',
+      id: 'zenodo', displayName: 'Zenodo', extensionId: 'SZTAKI-DSD.zenodo-repository-provider',
       protocolVersion: '1.0', operations: { create: 'rockit.zenodo.create' },
     })
     const calls: string[] = []
@@ -184,7 +184,7 @@ describe('RepositoryProviderService', () => {
   it('passes root metadata through without a crosswalk before Zenodo export', async () => {
     const registry = new RepositoryProviderRegistry()
     registry.register({
-      id: 'zenodo', displayName: 'Zenodo', extensionId: 'rockit.zenodo-repository-provider',
+      id: 'zenodo', displayName: 'Zenodo', extensionId: 'SZTAKI-DSD.zenodo-repository-provider',
       protocolVersion: '1.0', operations: { create: 'rockit.zenodo.create' },
     })
     const executeCommand = jest.fn().mockResolvedValue({ remoteId: '42' })
@@ -214,7 +214,7 @@ describe('RepositoryProviderService', () => {
   it('maps imported Zenodo metadata after the provider returns and before opening the workspace', async () => {
     const registry = new RepositoryProviderRegistry()
     registry.register({
-      id: 'zenodo', displayName: 'Zenodo', extensionId: 'rockit.zenodo-repository-provider',
+      id: 'zenodo', displayName: 'Zenodo', extensionId: 'SZTAKI-DSD.zenodo-repository-provider',
       protocolVersion: '1.0', operations: { import: 'rockit.zenodo.import' },
     })
     const calls: string[] = []
@@ -264,7 +264,7 @@ describe('RepositoryProviderService', () => {
   it('preserves the imported RO-Crate without a crosswalk', async () => {
     const registry = new RepositoryProviderRegistry()
     registry.register({
-      id: 'zenodo', displayName: 'Zenodo', extensionId: 'rockit.zenodo-repository-provider',
+      id: 'zenodo', displayName: 'Zenodo', extensionId: 'SZTAKI-DSD.zenodo-repository-provider',
       protocolVersion: '1.0', operations: { import: 'rockit.zenodo.import' },
     })
     const crate = { '@graph': [{ '@id': './', name: 'Unmapped title' }] }
@@ -294,7 +294,7 @@ describe('RepositoryProviderService', () => {
   it('maps remote metadata before applying the selected sync merge policy', async () => {
     const registry = new RepositoryProviderRegistry()
     registry.register({
-      id: 'zenodo', displayName: 'Zenodo', extensionId: 'rockit.zenodo-repository-provider',
+      id: 'zenodo', displayName: 'Zenodo', extensionId: 'SZTAKI-DSD.zenodo-repository-provider',
       protocolVersion: '1.0', operations: { sync: 'rockit.zenodo.sync' },
     })
     const localCrate = {
@@ -347,7 +347,7 @@ describe('RepositoryProviderService', () => {
   it('merges the remote RO-Crate without mapping when sync has no crosswalk', async () => {
     const registry = new RepositoryProviderRegistry()
     registry.register({
-      id: 'zenodo', displayName: 'Zenodo', extensionId: 'rockit.zenodo-repository-provider',
+      id: 'zenodo', displayName: 'Zenodo', extensionId: 'SZTAKI-DSD.zenodo-repository-provider',
       protocolVersion: '1.0', operations: { sync: 'rockit.zenodo.sync' },
     })
     const localCrate = { '@graph': [{ '@id': './', name: 'Local' }] }

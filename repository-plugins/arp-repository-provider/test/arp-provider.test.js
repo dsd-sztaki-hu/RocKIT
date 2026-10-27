@@ -40,7 +40,7 @@ describe('ARP provider command boundary', () => {
         executeCommand: async (...args) => { executions.push(args) },
       },
     }
-    const context = { extension: { id: 'rockit.arp-repository-provider' }, subscriptions: [] }
+    const context = { extension: { id: 'SZTAKI-DSD.arp-repository-provider' }, subscriptions: [] }
     const repository = { baseUrl: 'https://repo.example.org', apiKey: 'secret' }
     const calls = []
 
@@ -66,7 +66,7 @@ describe('ARP provider command boundary', () => {
     assert.deepEqual(executions[0], ['rockit.repositories.registerProvider', {
       id: 'arp',
       displayName: 'ARP',
-      extensionId: 'rockit.arp-repository-provider',
+      extensionId: 'SZTAKI-DSD.arp-repository-provider',
       protocolVersion: '1.0',
       operations: {
         validate: VALIDATE_COMMAND,
@@ -110,7 +110,7 @@ describe('ARP provider command boundary', () => {
 
     await deactivateArpProvider(vscode)
     assert.deepEqual(executions[1], [
-      'rockit.repositories.unregisterProvider', 'arp', 'rockit.arp-repository-provider',
+      'rockit.repositories.unregisterProvider', 'arp', 'SZTAKI-DSD.arp-repository-provider',
     ])
   })
 })

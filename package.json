@@ -63,7 +63,7 @@
     "download:plugins": "theia download:plugins && node scripts/configure-viewer-plugins.js && node scripts/stage-local-vscode-plugins.js",
     "build:browser": "yarn run build:extensions && yarn run download:plugins && yarn workspace browser-app run bundle",
     "build:electron": "node scripts/build-electron.js",
-    "build:electron:impl": "yarn run build:extensions && yarn run download:plugins && yarn workspace electron-app run bundle",
+    "build:electron:impl": "yarn run build:extensions && yarn run download:plugins && yarn run package:repository-plugins && yarn workspace electron-app run bundle",
     "prepare": "lerna run prepare",
     "clean": "node scripts/clean-build.js",
     "rebuild:electron": "node scripts/build-electron.js --rebuild",
@@ -156,8 +156,8 @@
     "janisdd.vscode-edit-csv": "https://open-vsx.org/api/janisdd/vscode-edit-csv/0.11.9/file/janisdd.vscode-edit-csv-0.11.9.vsix"
   },
   "rockitBundledPlugins": {
-    "rockit.arp-repository-provider": "repository-plugins/arp-repository-provider",
-    "rockit.dataverse-repository-provider": "repository-plugins/dataverse-repository-provider",
-    "rockit.zenodo-repository-provider": "repository-plugins/zenodo-repository-provider"
+    "SZTAKI-DSD.arp-repository-provider": "repository-plugins/arp-repository-provider",
+    "SZTAKI-DSD.dataverse-repository-provider": "repository-plugins/dataverse-repository-provider",
+    "SZTAKI-DSD.zenodo-repository-provider": "repository-plugins/zenodo-repository-provider"
   }
 }

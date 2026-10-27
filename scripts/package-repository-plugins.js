@@ -31,11 +31,6 @@ for (const [expectedId, configuredSource] of Object.entries(repositoryPlugins)) 
   }
 
   const output = path.join(outputDirectory, `${actualId}-${manifest.version}.vsix`)
-  for (const file of fs.readdirSync(outputDirectory)) {
-    if (file.startsWith(`${actualId}-`) && file.endsWith('.vsix') && file !== path.basename(output)) {
-      fs.rmSync(path.join(outputDirectory, file), { force: true })
-    }
-  }
   const yarnArguments = ['run', 'package:vsix', '--out', output]
   const command = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : 'yarn'
   const commandArguments = process.platform === 'win32'
@@ -49,6 +44,13 @@ for (const [expectedId, configuredSource] of Object.entries(repositoryPlugins)) 
 
   if (result.error || result.status !== 0) {
     throw result.error || new Error(`Failed to package repository plugin '${actualId}'.`)
+  }
+
+  for (const file of fs.readdirSync(outputDirectory)) {
+    const isSamePlugin = file.includes(`.${manifest.name}-`) && file.endsWith('.vsix')
+    if (isSamePlugin && file !== path.basename(output)) {
+      fs.rmSync(path.join(outputDirectory, file), { force: true })
+    }
   }
 }
 

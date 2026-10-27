@@ -46,7 +46,7 @@ describe('Dataverse provider command boundary', () => {
       },
     }
     const context = {
-      extension: { id: 'rockit.dataverse-repository-provider' },
+      extension: { id: 'SZTAKI-DSD.dataverse-repository-provider' },
       subscriptions: [],
     }
     const repository = {
@@ -77,7 +77,7 @@ describe('Dataverse provider command boundary', () => {
       {
         id: 'dataverse',
         displayName: 'Dataverse',
-        extensionId: 'rockit.dataverse-repository-provider',
+        extensionId: 'SZTAKI-DSD.dataverse-repository-provider',
         protocolVersion: '1.0',
         operations: {
           create: CREATE_COMMAND,
@@ -116,7 +116,7 @@ describe('Dataverse provider command boundary', () => {
     assert.deepEqual(executions[1], [
       'rockit.repositories.unregisterProvider',
       'dataverse',
-      'rockit.dataverse-repository-provider',
+      'SZTAKI-DSD.dataverse-repository-provider',
     ])
   })
 })

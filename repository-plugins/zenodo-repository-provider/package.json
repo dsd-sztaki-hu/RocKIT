@@ -3,7 +3,7 @@
   "displayName": "RocKIT Zenodo Repository Provider",
   "description": "Reference Zenodo repository provider for RocKIT.",
   "version": "1.0.0",
-  "publisher": "rockit",
+  "publisher": "SZTAKI-DSD",
   "license": "Apache-2.0",
   "private": true,
   "homepage": "https://dsd-sztaki-hu.github.io/RocKIT/",
