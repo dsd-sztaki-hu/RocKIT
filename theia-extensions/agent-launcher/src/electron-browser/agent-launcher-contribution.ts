@@ -518,17 +518,77 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   }
 
   protected async openAgentForUri(uri: URI, agentId: string): Promise<void> {
-    const directoryUri = await this.resolveDirectoryUri(uri)
+    const launchId = `${agentId}:${Date.now().toString(36)}`
+    const started = Date.now()
+    const log = (stage: string, details: object = {}) =>
+      console.info('[agent-launcher] terminal.launch', {
+        launchId, stage, elapsedMs: Date.now() - started, ...details,
+      })
+    // Report stalled backend/PTY calls without cancelling a potentially slow start.
+    const step = async <T>(stage: string, action: () => Promise<T>): Promise<T> => {
+      log(`${stage}.start`)
+      const timer = setTimeout(() => {
+        console.warn('[agent-launcher] terminal.launch.pending', {
+          launchId, stage, elapsedMs: Date.now() - started,
+        })
+      }, 15000)
+      try {
+        const result = await action()
+        log(`${stage}.complete`)
+        return result
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+    try {
+      await this.launchAgentTerminal(uri, agentId, log, step)
+    } catch (error) {
+      console.error('[agent-launcher] terminal.launch.failed', {
+        launchId, elapsedMs: Date.now() - started, error,
+      })
+      throw error
+    }
+  }
+
+  protected async launchAgentTerminal(
+    uri: URI,
+    agentId: string,
+    log: (stage: string, details?: object) => void,
+    step: <T>(stage: string, action: () => Promise<T>) => Promise<T>,
+  ): Promise<void> {
+    const directoryUri = await step('resolve-directory', () => this.resolveDirectoryUri(uri))
     const cwd = FileUri.fsPath(directoryUri)
     const agentName = this.formatAgentName(agentId)
-    const terminal = await this.terminalService.newTerminal({
+    log('target', { cwd, executable: sharedAvailableAgents.get(agentId), isWindows })
+    const terminal = await step('create-widget', () => this.terminalService.newTerminal({
       cwd,
       title: agentName,
       iconClass: AGENT_TERMINAL_ICON_CLASS,
+    }))
+    const listeners = [
+      terminal.onDidOpen(() => log('terminal.open', { terminalId: terminal.terminalId })),
+      terminal.onDidOpenFailure(() => log('terminal.open-failed')),
+      terminal.onShellTypeChanged((shellType) => log('terminal.shell-type', { shellType })),
+      terminal.onTerminalDidClose(() => log('terminal.closed', { exitStatus: terminal.exitStatus })),
+    ]
+    let receivedOutput = false
+    listeners.push(terminal.onOutput((data) => {
+      if (!receivedOutput && data.length) {
+        receivedOutput = true
+        log('terminal.first-output', { length: data.length })
+      }
+    }))
+    terminal.disposed.connect(() => {
+      log('terminal.disposed')
+      listeners.forEach((listener) => listener.dispose())
     })
     this.terminalService.open(terminal, { mode: 'activate' })
-    await terminal.start()
-    await this.waitForTerminalOpen(terminal, 1000)
+    await step('start-shell', () => terminal.start())
+    // start() already emits onDidOpen before resolving.
+    void terminal.processInfo.then(
+      (info) => log('terminal.process', { executable: info.executable }),
+      (error) => log('terminal.process-info-failed', { error: String(error) }),
+    )
     this.setAgentTerminalStatus(
       terminal,
       agentId,
@@ -550,7 +610,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       agentId,
       nls.localize('rockit/agentLauncher/checkingMcp', 'Checking MCP...'),
     )
-    const mcpReady = await this.ensureAgentMcpConfigured(agentId, directoryUri)
+    const mcpReady = await step('configure-mcp', () => this.ensureAgentMcpConfigured(agentId, directoryUri))
+    log('mcp.result', { ready: mcpReady })
     if (!mcpReady) {
       this.setAgentTerminalStatus(
         terminal,
@@ -572,7 +633,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
           'Updating instructions...',
         ),
       )
-      await this.agentInstructionService.ensureAgentFiles(directoryUri, agentId)
+      await step('copy-instructions', () => this.agentInstructionService.ensureAgentFiles(directoryUri, agentId))
     } else {
       this.setAgentTerminalStatus(
         terminal,
@@ -591,13 +652,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     )
     const launchArgs = this.buildAgentLaunchArgs(agentId, executable)
     try {
-      await terminal.executeCommand({ cwd, args: launchArgs })
+      await step('send-command', () => terminal.executeCommand({ cwd, args: launchArgs }))
+      log('command.sent', { executable, receivedOutput })
       this.setAgentTerminalStatus(
         terminal,
         agentId,
         nls.localize('rockit/agentLauncher/running', 'Running'),
       )
-    } catch {
+    } catch (error) {
+      console.warn('[agent-launcher] terminal.command-fallback', { agentId, executable, error })
+      log('command.fallback')
       terminal.sendText(`${this.buildAgentFallbackCommand(agentId, executable)}\n`)
       this.setAgentTerminalStatus(
         terminal,
