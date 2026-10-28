@@ -36,14 +36,21 @@ function buildPlugin(source, manifest) {
   }
 }
 
-function copyPlugin(source, target) {
+function copyPlugin(source, target, manifest) {
+  const includedEntries = new Set([
+    'package.json',
+    ...(manifest.files || []).map(entry => entry.split(/[\\/]/)[0]),
+  ])
   fs.rmSync(target, { recursive: true, force: true })
   fs.cpSync(source, target, {
     recursive: true,
     filter: (entry) => {
       const relative = path.relative(source, entry)
+      if (!relative) {
+        return true
+      }
       const firstSegment = relative.split(path.sep)[0]
-      return !['test', 'node_modules', '.gitignore', 'tsconfig.json'].includes(firstSegment)
+      return includedEntries.has(firstSegment)
     },
   })
 }
@@ -76,6 +83,6 @@ for (const [expectedId, configuredSource] of Object.entries(bundledPlugins)) {
 
   buildPlugin(source, manifest)
   removeStalePluginCopies(expectedId, manifest.name)
-  copyPlugin(source, path.join(pluginsRoot, expectedId))
+  copyPlugin(source, path.join(pluginsRoot, expectedId), manifest)
   console.log(`Staged bundled VS Code plugin ${expectedId}.`)
 }
