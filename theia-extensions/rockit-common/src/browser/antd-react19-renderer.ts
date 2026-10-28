@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 // Ant Design 5 needs a React 19 renderer for its static message and modal APIs.
 import { unstableSetRender } from 'antd';
 import { createRoot, Root } from '@theia/core/shared/react-dom/client';
