@@ -53,5 +53,3 @@ for (const [expectedId, configuredSource] of Object.entries(repositoryPlugins)) 
     }
   }
 }
-
-console.log(`Packaged ${Object.keys(repositoryPlugins).length} repository plugins in ${outputDirectory}.`)

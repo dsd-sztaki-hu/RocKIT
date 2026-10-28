@@ -84,5 +84,4 @@ for (const [expectedId, configuredSource] of Object.entries(bundledPlugins)) {
   buildPlugin(source, manifest)
   removeStalePluginCopies(expectedId, manifest.name)
   copyPlugin(source, path.join(pluginsRoot, expectedId), manifest)
-  console.log(`Staged bundled VS Code plugin ${expectedId}.`)
 }
