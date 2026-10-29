@@ -17,6 +17,7 @@ import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import EditIcon from '@mui/icons-material/Edit';
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import {
     DataRepositoryConfig,
@@ -180,6 +181,10 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
             this.reactRoot = createRoot(this.contentNode);
         }
 
+        const hasRepositoriesWithoutType = this.repositories.some(
+            repository => !repository.providerId?.trim()
+        );
+
         this.reactRoot.render(
             <div
                 className="data-repo-selector"
@@ -208,6 +213,26 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                             </div>
                         </div>
                     </div>
+
+                    {hasRepositoriesWithoutType && (
+                        <div className="data-repo-selector__missing-type-warning" role="alert">
+                            <WarningAmberOutlinedIcon className="data-repo-selector__missing-type-warning-icon" />
+                            <div>
+                                <div className="data-repo-selector__missing-type-warning-title">
+                                    {nls.localize(
+                                        'rockit/dataRepository/repositoryTypeRequired',
+                                        'Repository type required'
+                                    )}
+                                </div>
+                                <div className="data-repo-selector__missing-type-warning-description">
+                                    {nls.localize(
+                                        'rockit/dataRepository/repositoriesMissingTypeWarning',
+                                        'Some configured repositories do not have a repository type. Operations are unavailable for those repositories. Edit each affected repository and select a repository type to enable its operations.'
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="data-repo-selector__body">
                         {this.repositories.length === 0 ? (

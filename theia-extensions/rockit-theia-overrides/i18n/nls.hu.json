@@ -786,6 +786,8 @@
       "lastValidationError": "Legutóbbi validációs hiba",
       "chooseRepository": "Repozitórium kiválasztása",
       "chooseRepositoryDescription": "Válasszon repozitóriumot a gyűjtemények böngészéséhez.",
+      "repositoryTypeRequired": "Repozitóriumtípus szükséges",
+      "repositoriesMissingTypeWarning": "Néhány beállított repozitóriumhoz nincs repozitóriumtípus megadva. Ezeknél a repozitóriumoknál a műveletek nem érhetők el. Szerkessze az érintett repozitóriumokat, és válasszon repozitóriumtípust a műveletek engedélyezéséhez.",
       "noRepositoriesFound": "Nem találhatók repozitóriumok",
       "noRepositoriesConfigured": "Még nincs beállítva adatrepozitórium.",
       "lastSuccessfullyModified": "Utolsó sikeres módosítás: {0}",

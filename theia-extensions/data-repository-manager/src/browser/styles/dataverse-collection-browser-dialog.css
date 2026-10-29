@@ -103,16 +103,6 @@
     cursor: pointer;
 }
 
-.dataverse-tree__node:hover {
-    background-color: var(--theia-list-hoverBackground);
-}
-
-.dataverse-tree__node--selected,
-.dataverse-tree__node--selected:hover {
-    background-color: var(--theia-list-inactiveSelectionBackground, var(--theia-list-hoverBackground));
-    color: var(--theia-list-inactiveSelectionForeground, var(--theia-foreground));
-}
-
 .dataverse-tree__node-icon {
     margin-right: 8px;
     display: flex;
