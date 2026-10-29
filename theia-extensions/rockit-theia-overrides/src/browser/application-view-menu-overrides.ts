@@ -6,17 +6,17 @@
 
 import {
   ApplicationShell,
+  CommonMenus,
   FrontendApplication,
   FrontendApplicationContribution,
-  CommonMenus,
 } from '@theia/core/lib/browser'
+import { ShellLayoutTransformer } from '@theia/core/lib/browser/shell/shell-layout-restorer'
 import {
   CommandRegistry,
   ContributionProvider,
   MenuModelRegistry,
   nls,
 } from '@theia/core/lib/common'
-import { ShellLayoutTransformer } from '@theia/core/lib/browser/shell/shell-layout-restorer'
 import { inject, injectable, named } from '@theia/core/shared/inversify'
 import { RO_CRATE_MENU_ITEMS } from './application-ro-crate-menu-contribution'
 
@@ -47,6 +47,8 @@ export class ApplicationViewMenuOverrides
     'outlineView.collapse.all',
     'outlineView.expand.all',
   ]
+  protected readonly legacyPluginsCommandId = 'pluginsView:toggle'
+  protected readonly extensionsCommandId = 'vsxExtensions.toggle'
 
   protected readonly viewWidgetsMenuPath = [
     ...CommonMenus.VIEW,
@@ -87,9 +89,11 @@ export class ApplicationViewMenuOverrides
   onStart(): void {
     this.removeOutlineFromViewMenuAndCommands()
     this.removeHiddenViewCommands()
+    this.replacePluginsMenuCommand()
     this.reorderMenuItems()
     window.setTimeout(() => this.removeOutlineFromViewMenuAndCommands(), 0)
     window.setTimeout(() => this.removeHiddenViewCommands(), 0)
+    window.setTimeout(() => this.replacePluginsMenuCommand(), 0)
     window.setTimeout(() => this.reorderMenuItems(), 0)
     const cleanup = window.setInterval(() => {
       void this.closeHiddenViewWidgets()
@@ -105,7 +109,9 @@ export class ApplicationViewMenuOverrides
     this.stripOutlineFromDockLayout(layoutData.mainPanel as unknown)
     this.stripOutlineFromDockLayout(layoutData.bottomPanel?.config as unknown)
     this.stripHiddenViewContainersFromDockLayout(layoutData.mainPanel as unknown)
-    this.stripHiddenViewContainersFromDockLayout(layoutData.bottomPanel?.config as unknown)
+    this.stripHiddenViewContainersFromDockLayout(
+      layoutData.bottomPanel?.config as unknown,
+    )
     if (layoutData.activeWidgetId === this.outlineWidgetId) {
       layoutData.activeWidgetId = undefined
     }
@@ -138,7 +144,10 @@ export class ApplicationViewMenuOverrides
       'schema-selector:command',
       CommonMenus.VIEW_PRIMARY,
     )
-    this.menuRegistry.unregisterMenuAction('schema-selector:command', CommonMenus.VIEW_VIEWS)
+    this.menuRegistry.unregisterMenuAction(
+      'schema-selector:command',
+      CommonMenus.VIEW_VIEWS,
+    )
     this.menuRegistry.unregisterMenuAction('schema-selector:command', CommonMenus.VIEW)
     this.menuRegistry.unregisterMenuAction(
       'schema-selector:command',
@@ -174,6 +183,25 @@ export class ApplicationViewMenuOverrides
     }
   }
 
+  protected replacePluginsMenuCommand(): void {
+    const menuPaths = [
+      CommonMenus.VIEW_PRIMARY,
+      CommonMenus.VIEW_VIEWS,
+      CommonMenus.VIEW,
+      this.viewWidgetsMenuPath,
+    ]
+
+    for (const menuPath of menuPaths) {
+      this.menuRegistry.unregisterMenuAction(this.legacyPluginsCommandId, menuPath)
+      this.menuRegistry.unregisterMenuAction(this.extensionsCommandId, menuPath)
+    }
+
+    this.menuRegistry.registerMenuAction(CommonMenus.VIEW_VIEWS, {
+      commandId: this.extensionsCommandId,
+      label: nls.localizeByDefault('Plugins'),
+    })
+  }
+
   protected disableOutlineDefaultLayoutContribution(): void {
     for (const contribution of this.frontendContributions.getContributions()) {
       if (contribution === this) {
@@ -205,8 +233,7 @@ export class ApplicationViewMenuOverrides
         widgetId?: string
         options?: { widgetId?: string }
       }
-      const viewId =
-        candidate.viewId ?? candidate.widgetId ?? candidate.options?.widgetId
+      const viewId = candidate.viewId ?? candidate.widgetId ?? candidate.options?.widgetId
       if (
         !viewId ||
         !this.hiddenViewContainerIds.includes(viewId) ||
