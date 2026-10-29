@@ -257,6 +257,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
     protected renderRepository(repo: DataRepositoryConfig): React.ReactNode {
         const exportTargets = this.exportTargetsByRepositoryId[repo.id] ?? [];
         const provider = this.providerService.getProviderForRepository(repo);
+        const isRepositoryTypeMissing = !repo.providerId?.trim();
         const supports = (operation: RepositoryOperation) =>
             !!repo.providerId && this.providerService.supports(repo, operation);
         return (
@@ -272,6 +273,22 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                         <div className="data-repo-selector__item-details">
                             <div className="data-repo-selector__item-title-row">
                                 <div className="data-repo-selector__item-title">{repo.title}</div>
+                                {isRepositoryTypeMissing && (
+                                    <span
+                                        className="data-repo-selector__missing-type-indicator"
+                                        role="img"
+                                        title={nls.localize(
+                                            'rockit/dataRepository/repositoryTypeMissingFromConfig',
+                                            'Repository type is missing from this repository configuration.'
+                                        )}
+                                        aria-label={nls.localize(
+                                            'rockit/dataRepository/repositoryTypeMissingFromConfig',
+                                            'Repository type is missing from this repository configuration.'
+                                        )}
+                                    >
+                                        <WarningAmberOutlinedIcon />
+                                    </span>
+                                )}
                                 <button
                                     className="data-repo-selector__edit-repository"
                                     title={nls.localize('rockit/dataRepository/editRepository', 'Edit Repository')}

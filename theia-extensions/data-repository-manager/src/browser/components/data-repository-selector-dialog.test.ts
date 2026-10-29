@@ -54,6 +54,25 @@ describe('DataRepositorySelectorDialog', () => {
     act(() => dialog.reactRoot.unmount())
   })
 
+  it('marks only repository rows that have no repository type', () => {
+    const dialog = renderDialog([repository(), {
+      ...repository('arp'),
+      id: 'repository-2',
+      title: 'Configured repository',
+    }])
+    const indicators = dialog.contentNode.querySelectorAll(
+      '.data-repo-selector__missing-type-indicator',
+    )
+
+    expect(indicators).toHaveLength(1)
+    expect(indicators[0].getAttribute('title')).toBe(
+      'Repository type is missing from this repository configuration.',
+    )
+    expect(indicators[0].parentElement?.textContent).toContain('Legacy repository')
+
+    act(() => dialog.reactRoot.unmount())
+  })
+
   it('keeps the warning until every repository has a type', () => {
     const dialog = renderDialog([repository('arp'), {
       ...repository('   '),
