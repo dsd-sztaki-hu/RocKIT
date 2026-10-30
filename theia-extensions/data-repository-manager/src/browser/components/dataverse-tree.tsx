@@ -246,7 +246,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                 itemId={node.id}
                 label={
                     <div 
-                        className={`dataverse-tree__node${props.selectedCollectionId === node.id ? ' dataverse-tree__node--selected' : ''}`}
+                        className="dataverse-tree__node"
                         onClick={(e) => onNodeClick(node, e)}
                     >
                         <span className="dataverse-tree__node-icon">
@@ -258,21 +258,22 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                 sx={{
                     color: 'var(--theia-foreground)',
                     '& .MuiTreeItem-content': {
+                        // Style MUI's full row so the expansion/icon gutter is selected too.
                         padding: 0,
                         borderRadius: 0,
                         outline: 'none !important',
-                        '&.Mui-selected': {
-                            backgroundColor: 'transparent !important',
-                            color: 'var(--theia-foreground) !important',
+                        '&.Mui-selected, &.Mui-selected.Mui-focused': {
+                            backgroundColor: 'var(--theia-list-inactiveSelectionBackground, var(--theia-list-hoverBackground)) !important',
+                            color: 'var(--theia-list-inactiveSelectionForeground, var(--theia-foreground)) !important',
                         },
-                        '&.Mui-focused': {
+                        '&.Mui-selected:hover': {
+                            backgroundColor: 'var(--theia-list-inactiveSelectionBackground, var(--theia-list-hoverBackground)) !important',
+                        },
+                        '&.Mui-focused:not(.Mui-selected)': {
                             backgroundColor: 'transparent !important',
                         },
-                        '&.Mui-selected.Mui-focused': {
-                            backgroundColor: 'transparent !important',
-                        },
-                        '&:hover': {
-                            backgroundColor: 'transparent !important',
+                        '&:hover:not(.Mui-selected)': {
+                            backgroundColor: 'var(--theia-list-hoverBackground) !important',
                             color: 'var(--theia-foreground)',
                         }
                     },
