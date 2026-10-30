@@ -100,6 +100,47 @@ describe('RoCrateEditorWidget dirty state', () => {
     expect(widget.appStateService.dirty).toBe(true)
     expect(widget.dirty).toBe(true)
   })
+
+  it('stays dirty after a failed disk save and can retry successfully', async () => {
+    const crate = crateWithFileId('dino.jpg')
+    const widget = new RoCrateEditorWidget() as any
+    const persistenceError = new Error('disk unavailable')
+
+    widget.appStateService = {
+      roCrate: crate,
+      roCrateApproval: undefined,
+      dirty: true,
+    }
+    widget.workspaceService = {
+      tryGetRoots: jest.fn().mockReturnValue([{ resource: {} }]),
+    }
+    widget.persistenceService = {
+      write: jest.fn().mockRejectedValueOnce(persistenceError),
+    }
+    widget.writeRoCrateApprovalFile = jest.fn().mockResolvedValue(undefined)
+    widget.captureEntityBaseline = jest.fn()
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    try {
+      await widget.save()
+
+      expect(widget.appStateService.dirty).toBe(true)
+      expect(widget.captureEntityBaseline).not.toHaveBeenCalled()
+      expect(widget.persistPromise).toBeUndefined()
+
+      widget.persistenceService.write.mockImplementationOnce(async () => {
+        widget.appStateService.dirty = false
+      })
+      await widget.save()
+
+      expect(widget.persistenceService.write).toHaveBeenCalledTimes(2)
+      expect(widget.appStateService.dirty).toBe(false)
+      expect(widget.captureEntityBaseline).toHaveBeenCalledWith('./', crate)
+      expect(widget.persistPromise).toBeUndefined()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
 })
 
 describe('RoCrateEditorWidget entity fallback', () => {
@@ -275,6 +316,9 @@ describe('RoCrateEditorWidget validation scope', () => {
     widget.schemaManagerService = {
       onDidChangeSchemas: jest.fn().mockReturnValue(disposable),
     }
+    widget.profileManagerService = {
+      onDidChangeProfiles: jest.fn().mockReturnValue(disposable),
+    }
     widget.messageService = {
       info: jest.fn(),
       error: jest.fn(),
@@ -310,5 +354,106 @@ describe('RoCrateEditorWidget validation scope', () => {
       'always',
       'full',
     )
+  })
+
+  it('publishes an empty targeted result when the validator callback fails', async () => {
+    const widget = new RoCrateEditorWidget() as any
+    widget.localCrate = crateWithFileId('dino.jpg')
+    widget.baseProfile = { classes: {} }
+    widget.appStateService = { roCrate: widget.localCrate }
+    widget.schemaValidator = {
+      validateEntitiesTargeted: jest.fn().mockRejectedValue(new Error('validator failed')),
+    }
+    widget.publishValidationErrors = jest.fn()
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    try {
+      await widget.validateTargetedEntitiesNow(['./'])
+    } finally {
+      warnSpy.mockRestore()
+    }
+
+    expect(widget.publishValidationErrors).toHaveBeenCalledWith([])
+  })
+})
+
+describe('RoCrateEditorWidget profile changes', () => {
+  it.each([
+    ['a linked entity', 'Person', true],
+    ['a Dataset', 'Dataset', false],
+    ['a File', 'File', false],
+  ])('chooses the correct fallback profile for %s', async (_label, entityType, useComplete) => {
+    const baseProfile = { classes: { Base: { inputs: [] } } }
+    const completeProfile = { classes: { Person: { inputs: [] } } }
+    const widget = new RoCrateEditorWidget() as any
+    widget.localCrate = {
+      '@graph': [{ '@id': '#entity', '@type': entityType, name: 'Example' }],
+    }
+    widget.localCompleteProfile = completeProfile
+    widget.appStateService = { profileList: [] }
+    widget.update = jest.fn()
+
+    await widget.updateProfileWithEntitySchemas(baseProfile, '#entity')
+
+    expect(widget.localProfile).toEqual(useComplete ? completeProfile : baseProfile)
+    expect(widget.localProfile).not.toBe(useComplete ? completeProfile : baseProfile)
+  })
+
+  it('resets the refresh guard after profile merging rejects', async () => {
+    const profileUrl = 'https://example.test/profile'
+    const baseProfile = { classes: {} }
+    const mergedProfile = { classes: { Person: { inputs: [] } } }
+    const widget = new RoCrateEditorWidget() as any
+    widget.localCrate = {
+      '@graph': [{
+        '@id': '#person',
+        '@type': 'Person',
+        name: 'Ada Example',
+        conformsTo: profileUrl,
+      }],
+    }
+    widget.appStateService = {
+      roCrate: widget.localCrate,
+      profileList: [{ id: profileUrl, content: { classes: {} } }],
+    }
+    widget.profileManagerService = {
+      getMergedProfileForClass: jest.fn()
+        .mockRejectedValueOnce(new Error('merge failed'))
+        .mockResolvedValueOnce(mergedProfile),
+    }
+    widget.updateEntityConformsTo = jest.fn()
+    widget.update = jest.fn()
+
+    await expect(
+      widget.updateProfileWithEntitySchemas(baseProfile, '#person'),
+    ).rejects.toThrow('merge failed')
+    expect(widget.isRefreshingProfile).toBe(false)
+
+    await widget.updateProfileWithEntitySchemas(baseProfile, '#person')
+    expect(widget.localProfile).toBe(mergedProfile)
+    expect(widget.isRefreshingProfile).toBe(false)
+  })
+})
+
+describe('RoCrateEditorWidget validation navigation', () => {
+  it('publishes distinct field-scroll requests and ignores incomplete targets', () => {
+    const widget = new RoCrateEditorWidget() as any
+    widget.update = jest.fn()
+
+    widget.scrollToValidationField('', 'name')
+    widget.scrollToValidationField('./', '')
+    expect(widget.update).not.toHaveBeenCalled()
+
+    widget.scrollToValidationField('./', 'name')
+    const firstRequest = widget.validationFieldScrollRequest
+    widget.scrollToValidationField('./', 'name')
+
+    expect(firstRequest).toEqual({ entityId: './', fieldName: 'name', nonce: 1 })
+    expect(widget.validationFieldScrollRequest).toEqual({
+      entityId: './',
+      fieldName: 'name',
+      nonce: 2,
+    })
+    expect(widget.update).toHaveBeenCalledTimes(2)
   })
 })

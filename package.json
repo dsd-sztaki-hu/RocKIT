@@ -15,7 +15,7 @@
   },
   "bugs": {
     "url": "https://github.com/dsd-sztaki-hu/RocKIT/issues",
-    "email": "zoltan.toth@sztaki.hu"
+    "email": "rockit@dsd.sztaki.hu"
   },
   "keywords": [
     "ro-crate",
@@ -50,7 +50,7 @@
   ],
   "packageManager": "yarn@1.22.22",
   "engines": {
-    "node": ">=18",
+    "node": ">=24",
     "npm": ">=8"
   },
   "scripts": {
@@ -60,10 +60,10 @@
     "pack:rocrate-mcp-standalone": "yarn build:rocrate-mcp-standalone && yarn workspace @arpproject/rocrate-mcp-server pack:standalone",
     "test:rocrate-tools": "yarn workspace rocrate-context-core test && yarn workspace rockit-common test && yarn workspace @arpproject/rocrate-mcp-server test",
     "verify:rocrate-tools": "yarn build:rocrate-tools && yarn test:rocrate-tools",
-    "download:plugins": "theia download:plugins && node scripts/configure-viewer-plugins.js",
+    "download:plugins": "theia download:plugins && node scripts/configure-viewer-plugins.js && node scripts/stage-local-vscode-plugins.js",
     "build:browser": "yarn run build:extensions && yarn run download:plugins && yarn workspace browser-app run bundle",
     "build:electron": "node scripts/build-electron.js",
-    "build:electron:impl": "yarn run build:extensions && yarn run download:plugins && yarn workspace electron-app run bundle",
+    "build:electron:impl": "yarn run build:extensions && yarn run download:plugins && yarn run package:repository-plugins && yarn workspace electron-app run bundle",
     "prepare": "lerna run prepare",
     "clean": "node scripts/clean-build.js",
     "rebuild:electron": "node scripts/build-electron.js --rebuild",
@@ -74,6 +74,23 @@
     "start:rocrate-mcp": "yarn workspace @arpproject/rocrate-mcp-server start",
     "watch:browser": "lerna run --parallel watch --ignore electron-app",
     "watch:electron": "lerna run --parallel watch --ignore browser-app",
+    "test": "yarn test:unit",
+    "test:unit": "node scripts/run-unit-tests.js",
+    "test:data-repository-manager": "yarn workspace data-repository-manager test --runInBand",
+    "test:repository-plugins": "yarn --cwd repository-plugins/arp-repository-provider test && yarn --cwd repository-plugins/dataverse-repository-provider test && yarn --cwd repository-plugins/zenodo-repository-provider test",
+    "package:repository-plugins": "node scripts/package-repository-plugins.js",
+    "test:integration:mcp": "yarn workspace @arpproject/rocrate-mcp-server test:all",
+    "test:crosswalk": "yarn workspace data-repository-manager crosswalk:check",
+    "test:integration": "node scripts/run-integration-tests.js",
+    "pretest:e2e": "playwright install ffmpeg",
+    "test:e2e": "playwright test --project=electron",
+    "pretest:e2e:debug": "playwright install ffmpeg",
+    "test:e2e:debug": "playwright test --project=electron --debug",
+    "pretest:e2e:ui": "playwright install ffmpeg",
+    "test:e2e:ui": "playwright test --project=electron --ui",
+    "test:e2e:report": "playwright show-report playwright-report/electron",
+    "test:all": "yarn test:unit && yarn test:integration && yarn test:integration:mcp && yarn test:crosswalk",
+    "test:coverage": "yarn workspace @arpproject/recrate test:coverage",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "format": "biome format .",
@@ -87,24 +104,48 @@
     "recrate:publish": "yarn workspace @arpproject/recrate build && (cd dev-packages/recrate && npm publish)"
   },
   "devDependencies": {
-    "lerna": "2.4.0",
     "@biomejs/biome": "2.3.2",
-    "electron-builder": "26.4.0"
+    "@playwright/test": "1.62.1",
+    "@theia/playwright": "1.76.0",
+    "@theia/test-setup": "1.76.0",
+    "cross-spawn": "^7.0.6",
+    "electron-builder": "26.4.0",
+    "ignore-styles": "5.0.1",
+    "lerna": "2.4.0",
+    "mocha": "10.8.2",
+    "nyc": "15.1.0",
+    "playwright": "1.62.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@testing-library/dom": "^10.4.0",
+    "typescript": "~5.9.3",
+    "node-gyp": "11.5.0",
+    "esbuild": "^0.28.2",
+    "esbuild-plugin-copy": "^2.1.1",
+    "esbuild-plugins-node-modules-polyfill": "^1.8.3",
+    "@vscode/vsce": "4.0.0"
   },
   "workspaces": [
     "dev-packages/*",
     "theia-extensions/*",
+    "repository-plugins/*",
     "browser-app",
     "electron-app"
   ],
   "dependencies": {
+    "dotenv": "17.2.3",
     "generator-theia-extension": "0.1.44",
-    "dotenv": "17.2.3"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "resolutions": {
+    "@playwright/test": "1.62.1",
     "@types/minimatch": "3.0.5",
-    "@types/react": "18.3.27",
-    "@types/react-dom": "18.3.7"
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "playwright": "1.62.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "theiaPluginsDir": "plugins",
   "theiaPlugins": {
@@ -113,5 +154,10 @@
     "vscode.json": "https://open-vsx.org/api/vscode/json/1.95.3/file/vscode.json-1.95.3.vsix",
     "vscode.json-language-features": "https://open-vsx.org/api/vscode/json-language-features/1.95.3/file/vscode.json-language-features-1.95.3.vsix",
     "janisdd.vscode-edit-csv": "https://open-vsx.org/api/janisdd/vscode-edit-csv/0.11.9/file/janisdd.vscode-edit-csv-0.11.9.vsix"
+  },
+  "rockitBundledPlugins": {
+    "SZTAKI-DSD.arp-repository-provider": "repository-plugins/arp-repository-provider",
+    "SZTAKI-DSD.dataverse-repository-provider": "repository-plugins/dataverse-repository-provider",
+    "SZTAKI-DSD.zenodo-repository-provider": "repository-plugins/zenodo-repository-provider"
   }
 }

@@ -17,6 +17,10 @@ node_modules
 *.log
 __pycache__/
 *.pyc
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
 
 lib
 dist

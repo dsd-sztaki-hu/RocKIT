@@ -10,7 +10,7 @@ import { nls } from '@theia/core/lib/common'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import * as React from 'react'
-import ReactJson from 'react-json-view'
+import ReactJson from '@microlink/react-json-view'
 
 const RoCrateJsonView = React.memo<{ jsonObject: any }>(({ jsonObject }) => {
   return (

@@ -17,7 +17,7 @@ export interface AntdThemeProviderProps {
 export function AntdThemeProvider({
   themeService,
   children,
-}: AntdThemeProviderProps): JSX.Element {
+}: AntdThemeProviderProps): React.JSX.Element {
   const [mode, setMode] = React.useState<'light' | 'dark'>(() =>
     getThemeMode(themeService.getCurrentTheme().type),
   )

@@ -61,7 +61,7 @@ const AGENT_DEFINITIONS = [
     executables: ['opencode'],
     markerPaths: ['.opencode'],
     config: {
-      relativePath: ['.config', 'opencode', 'config.json'],
+      relativePath: ['.config', 'opencode', 'opencode.json'],
       kind: 'json' as const,
     },
   },
@@ -320,25 +320,24 @@ export function upsertJsonMcpConfig(
 ): string {
   const parsed: Record<string, unknown> = content.trim() === '' ? {} : JSON.parse(content)
   const existingMcp =
-    parsed.mcp && typeof parsed.mcp === 'object' && !Array.isArray(parsed.mcp)
-      ? (parsed.mcp as Record<string, unknown>)
-      : {}
+    isRecord(parsed.mcp) ? parsed.mcp : {}
   const existingMcpServers =
-    parsed.mcpServers &&
-    typeof parsed.mcpServers === 'object' &&
-    !Array.isArray(parsed.mcpServers)
-      ? (parsed.mcpServers as Record<string, unknown>)
-      : {}
+    isRecord(parsed.mcpServers) ? parsed.mcpServers : {}
   if (agentId === 'opencode') {
-    parsed.mcp = {
-      ...existingMcp,
-      rocrate: {
-        type: 'local',
-        enabled: true,
-        command: [launchConfig.command, ...launchConfig.args],
-        environment: launchConfig.env,
-      },
+    const nativeV2 = isOpenCodeV2ServerMap(existingMcp.servers)
+    const existingServers = isRecord(existingMcp.servers) ? existingMcp.servers : {}
+    const server = {
+      type: 'local',
+      ...(nativeV2 ? { disabled: false } : { enabled: true }),
+      command: [launchConfig.command, ...launchConfig.args],
+      environment: launchConfig.env,
     }
+    parsed.mcp = nativeV2
+      ? {
+          ...existingMcp,
+          servers: { ...existingServers, rocrate: server },
+        }
+      : { ...existingMcp, rocrate: server }
   } else {
     parsed.mcpServers = {
       ...existingMcpServers,
@@ -346,6 +345,19 @@ export function upsertJsonMcpConfig(
     }
   }
   return `${JSON.stringify(parsed, null, 2)}\n`
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isOpenCodeV2ServerMap(value: unknown): value is Record<string, unknown> {
+  return (
+    isRecord(value) &&
+    typeof value.type !== 'string' &&
+    typeof value.command !== 'string' &&
+    !Array.isArray(value.command)
+  )
 }
 
 export function buildMcpConfigSection(

@@ -41,6 +41,9 @@ rocrate-mcp-server -i codex
 Supported IDs are `codex`, `claude`, `opencode`, `kilo`, `roo`, `gemini`, and
 `qwen`. The generated configuration launches the standalone server through the
 shared per-user RockIT socket (`~/.rockit/rocrate-mcp-server.sock`).
+For OpenCode, the installer preserves the config format it finds: native V2
+configs use `mcp.servers`, while V1-shaped configs use the format that V2 still
+supports for compatibility.
 
 The standalone server and RocKIT share the same per-user profile and schema
 storage by default: `~/.rockit`. Set `ROCKIT_ROOT_PATH` to use another shared
@@ -111,6 +114,9 @@ Az elérhető azonosítók: `codex`, `claude`, `opencode`, `kilo`, `roo`, `gemin
 és `qwen`. A létrehozott konfiguráció a standalone szervert a közös,
 felhasználónkénti RockIT socketen (`~/.rockit/rocrate-mcp-server.sock`) keresztül
 indítja.
+OpenCode esetén a telepítő a meglévő konfiguráció formátumát követi: a natív V2
+konfigurációban az `mcp.servers` szerkezetet használja, a V1 alakú beállításokat
+pedig V2 kompatibilitási okból továbbra is elfogadja.
 
 A standalone szerver és a RocKIT alapértelmezés szerint ugyanazt a
 felhasználónkénti profil- és séma-tárolót használja: `~/.rockit`. Másik közös

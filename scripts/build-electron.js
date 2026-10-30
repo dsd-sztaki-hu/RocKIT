@@ -40,10 +40,14 @@ const env = {
     PWD: canonicalRoot
 };
 
-const yarnCommands = process.argv.includes('--rebuild')
+const isRebuild = process.argv.includes('--rebuild');
+const yarnCommands = isRebuild
     ? [
         ['run', 'clean'],
-        ['install'],
+        // Yarn's lifecycle runner resolves its own node-gyp 9, which selects
+        // unavailable ClangCL tooling with Node 24 on Windows. Build native
+        // modules with the workspace's node-gyp 11 after linking instead.
+        ['install', '--frozen-lockfile', ...(process.platform === 'win32' ? ['--ignore-scripts'] : [])],
         ['run', 'build:electron:impl']
     ]
     : [['run', 'build:electron:impl']];
@@ -68,6 +72,29 @@ const runYarn = args => {
     });
 };
 
+const rebuildWindowsNativeModules = () => {
+    const nodeGyp = path.join(canonicalRoot, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
+    const nativeModules = [
+        '@vscode/windows-ca-certs',
+        'drivelist',
+        '@theia/ffmpeg',
+        'native-keymap'
+    ];
+
+    for (const moduleName of nativeModules) {
+        console.log(`Rebuilding ${moduleName} with node-gyp 11...`);
+        const result = spawnSync(process.execPath, [nodeGyp, 'rebuild'], {
+            cwd: path.join(canonicalRoot, 'node_modules', moduleName),
+            env,
+            stdio: 'inherit'
+        });
+        if (result.error || result.status !== 0) {
+            console.error(result.error?.message || `${moduleName} rebuild exited with ${result.status}`);
+            process.exit(result.status ?? 1);
+        }
+    }
+};
+
 for (const args of yarnCommands) {
     const result = runYarn(args);
 
@@ -78,5 +105,9 @@ for (const args of yarnCommands) {
 
     if (result.status !== 0) {
         process.exit(result.status ?? 1);
+    }
+
+    if (isRebuild && process.platform === 'win32' && args[0] === 'install') {
+        rebuildWindowsNativeModules();
     }
 }

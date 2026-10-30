@@ -1,0 +1,1 @@
+Payload retained during malformed-metadata recovery.

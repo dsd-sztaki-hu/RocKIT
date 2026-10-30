@@ -1,16 +1,16 @@
 {
   "name": "@theia/navigator",
-  "version": "1.65.2",
+  "version": "1.76.0",
   "description": "RocKIT file explorer extension derived from Eclipse Theia Navigator",
   "rockitPackageName": "@rockit/file-explorer",
   "rockitPackageVersion": "1.0.0",
   "private": true,
   "dependencies": {
-    "@theia/core": "1.65.2",
-    "@theia/file-search": "1.65.2",
-    "@theia/filesystem": "1.65.2",
-    "@theia/terminal": "1.65.2",
-    "@theia/workspace": "1.65.2",
+    "@theia/core": "1.76.0",
+    "@theia/file-search": "1.76.0",
+    "@theia/filesystem": "1.76.0",
+    "@theia/terminal": "1.76.0",
+    "@theia/workspace": "1.76.0",
     "app-state": "0.0.1",
     "rockit-common": "1.0.0",
     "save-ro-crate": "1.0.0",
@@ -78,11 +78,14 @@
     "clean": "theiaext clean",
     "compile": "theiaext compile",
     "lint": "theiaext lint",
+    "pretest": "yarn compile",
+    "pretest:unit": "yarn compile",
     "test": "theiaext test",
+    "test:unit": "mocha --config ../../configs/mocharc.yml \"./lib/browser/navigator-filter.spec.js\"",
     "watch": "tsc -b -w --preserveWatchOutput"
   },
   "devDependencies": {
-    "@theia/ext-scripts": "1.65.2",
+    "@theia/ext-scripts": "1.76.0",
     "rimraf": "6.0.0"
   },
   "nyc": {

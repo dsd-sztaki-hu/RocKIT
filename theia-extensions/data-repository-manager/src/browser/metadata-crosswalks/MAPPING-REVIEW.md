@@ -615,11 +615,12 @@ and tell me when it is complete.
 - Missing-value behavior: `{"action": "omit"}`
 - Lossiness note: possible; mapping requires review for the active profile
 
-**Decision:** TODO
+**Decision:** REJECT the proposed `producer` pairing. Keep `imprint_publisher`
+explicitly unmapped with status `repositorySpecific` and omit it on export.
 
-**Your notes:**
-
->
+**Reason:** A dataset producer is not necessarily the publisher of a publication's
+imprint. No verified canonical source for that publisher has been established.
+The decision has no source candidates, and the LinkML derivation returns `None`.
 
 ---
 

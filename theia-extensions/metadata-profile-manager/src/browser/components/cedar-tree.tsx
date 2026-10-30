@@ -10,7 +10,7 @@
 import * as React from 'react';
 import { nls } from '@theia/core/lib/common/nls';
 import { useEffect, useState, useMemo } from 'react';
-import { TreeView } from '@mui/x-tree-view/TreeView';
+import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -415,7 +415,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
     nodes.map((node) => (
       <TreeItem
         key={node.id}
-        nodeId={node.id}
+        itemId={node.id}
         label={
             <div 
                 id={`cedar-node-${node.id}`}
@@ -488,7 +488,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
             ? renderTree(node.children) 
             : (
                 node.isFolder && !node.childrenLoaded 
-                    ? <TreeItem nodeId={node.id + "_dummy"} label="" sx={{ display: 'none' }} /> 
+                    ? <TreeItem itemId={node.id + "_dummy"} label="" sx={{ display: 'none' }} />
                     : null
             )
         }
@@ -588,13 +588,12 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
           )}
 
           {displayedNodes.length > 0 && (
-              <TreeView
-                defaultCollapseIcon={<ExpandMoreIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
-                defaultExpandIcon={<ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
-                expanded={expandedNodes}
-                onNodeToggle={handleToggle}
+              <SimpleTreeView
+                slots={{ collapseIcon: ExpandMoreIcon, expandIcon: ChevronRightIcon }}
+                expandedItems={expandedNodes}
+                onExpandedItemsChange={handleToggle}
                 multiSelect
-                selected={props.selectedTemplateIds}
+                selectedItems={props.selectedTemplateIds}
                 sx={{
                     flexGrow: 1,
                     outline: 'none',
@@ -602,7 +601,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                 }}
               >
                 {renderTree(displayedNodes)}
-              </TreeView>
+              </SimpleTreeView>
           )}
           
           {!isLoading && !errorMsg && displayedNodes.length === 0 && (

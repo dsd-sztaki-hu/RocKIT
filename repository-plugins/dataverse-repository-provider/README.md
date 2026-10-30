@@ -1,0 +1,43 @@
+# RocKIT Dataverse repository provider
+
+This extension is the native Dataverse repository provider for RocKIT. The
+extension registers Dataverse as an extension-backed repository type and
+implements authenticated connection validation, dataset creation/export, and
+remote draft deletion, updates, synchronization, and dataset archive import.
+
+Repository operations are advertised only after they have been migrated into
+the extension. This prevents RocKIT from displaying actions that still lack a
+provider implementation.
+
+`DataverseClient` is the transport boundary containing the Dataverse API
+endpoint calls required by the provider.
+
+`DataverseDestinationOperation` lists and searches Dataverse collections and
+checks whether the configured user may create a dataset in the selected
+collection. RocKIT only renders the returned provider-neutral destinations.
+
+`DataverseCreateOperation` receives a RocKIT-prepared Dataverse metadata
+payload and file manifest, creates the remote draft, uploads its files, and
+uploads rewritten RO-Crate metadata. It checkpoints the dataset and every
+uploaded file so RocKIT can maintain recoverable local mappings and hashes.
+
+`DataverseDeleteOperation` deletes the latest draft for a selected persistent
+dataset identifier. RocKIT removes the local export link only after the remote
+operation succeeds.
+
+`DataverseUpdateOperation` loads a remote draft snapshot for RocKIT's local
+comparison, then applies RocKIT's prepared file and mapped metadata update in a
+single provider operation with incremental recovery checkpoints.
+
+`DataverseSyncOperation` downloads the remote files selected by RocKIT's diff.
+RocKIT then applies the chosen merge mode and optional reverse crosswalk locally.
+
+`DataverseImportOperation` downloads a Dataverse dataset archive and its repository
+metadata. RocKIT extracts the archive, applies the selected reverse crosswalk, and
+persists the local repository link.
+
+`DataverseLinkOperation` resolves a dataset URL or persistent identifier and returns
+the remote title and file identifiers. RocKIT compares that snapshot with the open
+RO-Crate and owns the resulting `.rockit` mapping and export-log entries.
+
+Run the focused tests with `npm test` in this directory.

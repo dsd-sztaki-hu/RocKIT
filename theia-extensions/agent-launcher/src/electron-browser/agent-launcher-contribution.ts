@@ -41,10 +41,15 @@ import {
   AgentLauncherPreferences,
 } from '../common/agent-launcher-preferences'
 import { NativeAgentProvider } from '../common/native-agent-protocol'
-import type { McpKeepSetting, ParsedMcpServer } from './mcp-config'
+import type {
+  McpKeepSetting,
+  OpenCodeMcpConfigFormat,
+  ParsedMcpServer,
+} from './mcp-config'
 import {
   chooseMcpServerName,
   forgetMcpKeepSetting,
+  getOpenCodeMcpConfigFormat,
   hasRememberedMcpSetting,
   mcpServerMatches,
   mcpServerUsesSocket,
@@ -218,6 +223,8 @@ const sharedAvailableAgents = new Map<string, string>()
 const AGENT_TERMINAL_ICON_CLASS = 'codicon codicon-hubot'
 const INSIDE_ROCKIT_AGENT_CONTEXT_PROMPT = [
   'You are launched from inside RocKIT.',
+  '',
+  'The configured RO-Crate MCP server is called RO-Crate MCP and VibeARP. When the user says either call name, use the configured RO-Crate MCP tools (often shown as rocrate); do not search for another MCP server.',
   '',
   'Before doing RO-Crate work, call the RO-Crate MCP tool `set_agent_session_context` with:',
   '{"launchContext":"inside_rockit","editorAlreadyOpen":true}',
@@ -511,17 +518,78 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   }
 
   protected async openAgentForUri(uri: URI, agentId: string): Promise<void> {
-    const directoryUri = await this.resolveDirectoryUri(uri)
+    const launchId = `${agentId}:${Date.now().toString(36)}`
+    const started = Date.now()
+    const log = (stage: string, details: object = {}) =>
+      console.info('[agent-launcher] terminal.launch', {
+        launchId, stage, elapsedMs: Date.now() - started, ...details,
+      })
+    // Report stalled backend/PTY calls without cancelling a potentially slow start.
+    const step = async <T>(stage: string, action: () => Promise<T>): Promise<T> => {
+      log(`${stage}.start`)
+      const timer = setTimeout(() => {
+        console.warn('[agent-launcher] terminal.launch.pending', {
+          launchId, stage, elapsedMs: Date.now() - started,
+        })
+      }, 15000)
+      try {
+        const result = await action()
+        log(`${stage}.complete`)
+        return result
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+    try {
+      await this.launchAgentTerminal(uri, agentId, log, step)
+    } catch (error) {
+      console.error('[agent-launcher] terminal.launch.failed', {
+        launchId, elapsedMs: Date.now() - started, error,
+      })
+      throw error
+    }
+  }
+
+  protected async launchAgentTerminal(
+    uri: URI,
+    agentId: string,
+    log: (stage: string, details?: object) => void,
+    step: <T>(stage: string, action: () => Promise<T>) => Promise<T>,
+  ): Promise<void> {
+    const directoryUri = await step('resolve-directory', () => this.resolveDirectoryUri(uri))
     const cwd = FileUri.fsPath(directoryUri)
     const agentName = this.formatAgentName(agentId)
-    const terminal = await this.terminalService.newTerminal({
-      cwd,
+    log('target', { cwd, executable: sharedAvailableAgents.get(agentId), isWindows })
+    const terminal = await step('create-widget', () => this.terminalService.newTerminal({
+      // Terminal creation expects a URI; a raw Windows path loses its drive.
+      cwd: directoryUri.toString(),
       title: agentName,
       iconClass: AGENT_TERMINAL_ICON_CLASS,
+    }))
+    const listeners = [
+      terminal.onDidOpen(() => log('terminal.open', { terminalId: terminal.terminalId })),
+      terminal.onDidOpenFailure(() => log('terminal.open-failed')),
+      terminal.onShellTypeChanged((shellType) => log('terminal.shell-type', { shellType })),
+      terminal.onTerminalDidClose(() => log('terminal.closed', { exitStatus: terminal.exitStatus })),
+    ]
+    let receivedOutput = false
+    listeners.push(terminal.onOutput((data) => {
+      if (!receivedOutput && data.length) {
+        receivedOutput = true
+        log('terminal.first-output', { length: data.length })
+      }
+    }))
+    terminal.disposed.connect(() => {
+      log('terminal.disposed')
+      listeners.forEach((listener) => listener.dispose())
     })
     this.terminalService.open(terminal, { mode: 'activate' })
-    await terminal.start()
-    await this.waitForTerminalOpen(terminal, 1000)
+    await step('start-shell', () => terminal.start())
+    // start() already emits onDidOpen before resolving.
+    void terminal.processInfo.then(
+      (info) => log('terminal.process', { executable: info.executable }),
+      (error) => log('terminal.process-info-failed', { error: String(error) }),
+    )
     this.setAgentTerminalStatus(
       terminal,
       agentId,
@@ -543,7 +611,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       agentId,
       nls.localize('rockit/agentLauncher/checkingMcp', 'Checking MCP...'),
     )
-    const mcpReady = await this.ensureAgentMcpConfigured(agentId, directoryUri)
+    const mcpReady = await step('configure-mcp', () => this.ensureAgentMcpConfigured(agentId, directoryUri))
+    log('mcp.result', { ready: mcpReady })
     if (!mcpReady) {
       this.setAgentTerminalStatus(
         terminal,
@@ -565,7 +634,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
           'Updating instructions...',
         ),
       )
-      await this.agentInstructionService.ensureAgentFiles(directoryUri, agentId)
+      await step('copy-instructions', () => this.agentInstructionService.ensureAgentFiles(directoryUri, agentId))
     } else {
       this.setAgentTerminalStatus(
         terminal,
@@ -584,13 +653,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     )
     const launchArgs = this.buildAgentLaunchArgs(agentId, executable)
     try {
-      await terminal.executeCommand({ cwd, args: launchArgs })
+      await step('send-command', () => terminal.executeCommand({ cwd, args: launchArgs }))
+      log('command.sent', { executable, receivedOutput })
       this.setAgentTerminalStatus(
         terminal,
         agentId,
         nls.localize('rockit/agentLauncher/running', 'Running'),
       )
-    } catch {
+    } catch (error) {
+      console.warn('[agent-launcher] terminal.command-fallback', { agentId, executable, error })
+      log('command.fallback')
       terminal.sendText(`${this.buildAgentFallbackCommand(agentId, executable)}\n`)
       this.setAgentTerminalStatus(
         terminal,
@@ -701,6 +773,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return this.ensureClaudeMcpConfigured(directoryUri, launchConfig, cwd, spec)
     }
 
+    const openCodeMcpFormat =
+      agentId === 'opencode' ? await this.readOpenCodeMcpConfigFormat(spec) : undefined
+
     if (await this.isRocrateMcpConfigured(spec, launchConfig)) return true
 
     const entries = await this.readMcpConfigEntries(spec)
@@ -717,6 +792,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         launchConfig,
         sameSocketConflict,
         alternateName,
+        openCodeMcpFormat,
       )
       if (!decision) {
         return false
@@ -730,7 +806,12 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         serverName = alternateName
       }
     } else {
-      const snippet = this.buildRocrateMcpSnippet(spec, launchConfig)
+      const snippet = this.buildRocrateMcpSnippet(
+        spec,
+        launchConfig,
+        'rocrate',
+        openCodeMcpFormat,
+      )
       const accepted = await new ConfirmDialog({
         title: nls.localize(
           'rockit/agentLauncher/mcpNotConfiguredTitle',
@@ -768,7 +849,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const configs: Record<string, { path: string; kind: AgentConfigKind }> = {
       codex: { path: `${home}${s}.codex${s}config.toml`, kind: 'toml' },
       claude: { path: `${home}${s}.claude.json`, kind: 'json' },
-      opencode: { path: `${home}${s}.config${s}opencode${s}config.json`, kind: 'json' },
+      opencode: { path: `${home}${s}.config${s}opencode${s}opencode.json`, kind: 'json' },
       kilo: { path: `${home}${s}.kilo${s}config.json`, kind: 'json' },
       roo: { path: `${home}${s}.roo${s}config.json`, kind: 'json' },
       gemini: { path: `${home}${s}.gemini${s}settings.json`, kind: 'json' },
@@ -818,7 +899,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     try {
       const parsed = JSON.parse(content)
       if (spec.agentId === 'opencode') {
-        const rocrate = parsed.mcp?.rocrate
+        const rocrate = parsed.mcp?.servers?.rocrate ?? parsed.mcp?.rocrate
         return (
           Array.isArray(rocrate?.command) &&
           arraysEqual(rocrate.command, [launchConfig.command, ...launchConfig.args])
@@ -850,6 +931,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     } catch {
       return []
     }
+  }
+
+  protected async readOpenCodeMcpConfigFormat(
+    spec: AgentMcpConfigSpec,
+  ): Promise<OpenCodeMcpConfigFormat> {
+    const configUri = FileUri.create(spec.configPath)
+    if (!(await this.fileService.exists(configUri))) {
+      return 'v1'
+    }
+    return getOpenCodeMcpConfigFormat(await this.readTextFile(configUri))
   }
 
   protected findSameSocketConflict(
@@ -937,12 +1028,19 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     launchConfig: RocrateMcpLaunchConfig,
     conflict: ParsedMcpServer,
     alternateName: string,
+    openCodeMcpFormat?: OpenCodeMcpConfigFormat,
   ): Promise<RocrateMcpConflictDecision | undefined> {
-    const rocrateSnippet = this.buildRocrateMcpSnippet(spec, launchConfig)
+    const rocrateSnippet = this.buildRocrateMcpSnippet(
+      spec,
+      launchConfig,
+      'rocrate',
+      openCodeMcpFormat,
+    )
     const alternateSnippet = this.buildRocrateMcpSnippet(
       spec,
       launchConfig,
       alternateName,
+      openCodeMcpFormat,
     )
     const decision = await new RocrateMcpConflictDialog({
       title: nls.localize(
@@ -1003,6 +1101,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     spec: AgentMcpConfigSpec,
     launchConfig: RocrateMcpLaunchConfig,
     serverName = 'rocrate',
+    openCodeMcpFormat: OpenCodeMcpConfigFormat = 'v1',
   ): string {
     if (spec.kind === 'toml') {
       return [
@@ -1014,17 +1113,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       ].join('\n')
     }
     if (spec.agentId === 'opencode') {
+      const server = {
+        type: 'local',
+        ...(openCodeMcpFormat === 'v2' ? { disabled: false } : { enabled: true }),
+        command: [launchConfig.command, ...launchConfig.args],
+        environment: launchConfig.env,
+      }
       return JSON.stringify(
-        {
-          mcp: {
-            [serverName]: {
-              type: 'local',
-              enabled: true,
-              command: [launchConfig.command, ...launchConfig.args],
-              environment: launchConfig.env,
-            },
-          },
-        },
+        openCodeMcpFormat === 'v2'
+          ? { mcp: { servers: { [serverName]: server } } }
+          : { mcp: { [serverName]: server } },
         null,
         2,
       )
@@ -1316,14 +1414,30 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const content = exists ? await this.readTextFile(configUri) : '{}'
     const json = JSON.parse(content)
     if (spec.agentId === 'opencode') {
-      json.mcp = {
-        ...(json.mcp || {}),
-        [serverName]: {
-          type: 'local',
-          enabled: true,
-          command: [launchConfig.command, ...launchConfig.args],
-          environment: launchConfig.env,
-        },
+      const existingMcp =
+        json.mcp && typeof json.mcp === 'object' && !Array.isArray(json.mcp)
+          ? json.mcp as Record<string, unknown>
+          : {}
+      const format = getOpenCodeMcpConfigFormat(content)
+      const server = {
+        type: 'local',
+        ...(format === 'v2' ? { disabled: false } : { enabled: true }),
+        command: [launchConfig.command, ...launchConfig.args],
+        environment: launchConfig.env,
+      }
+      if (format === 'v2') {
+        const existingServers =
+          existingMcp.servers &&
+          typeof existingMcp.servers === 'object' &&
+          !Array.isArray(existingMcp.servers)
+            ? existingMcp.servers as Record<string, unknown>
+            : {}
+        json.mcp = {
+          ...existingMcp,
+          servers: { ...existingServers, [serverName]: server },
+        }
+      } else {
+        json.mcp = { ...existingMcp, [serverName]: server }
       }
     } else {
       json.mcpServers = {
@@ -1498,7 +1612,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     label: string,
     ignoreFailures = false,
   ): Promise<void> {
-    const terminal = await this.terminalService.newTerminal({ cwd })
+    const terminal = await this.terminalService.newTerminal({ cwd: FileUri.create(cwd).toString() })
     await terminal.start()
     await this.waitForTerminalOpen(terminal, 2000)
     try {
@@ -1550,8 +1664,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     candidates: string[],
     additionalDirs: string[] = [],
   ): Promise<string | undefined> {
-    const processEnv = (globalThis as any).process?.env
-    const pathValue = processEnv?.PATH ?? ''
+    // The isolated Electron renderer has no process.env. Read the backend's
+    // environment so installations outside the common bin directories are found.
+    const pathValue = (await this.getEnvironmentValue('PATH')) ?? ''
     const dirs = [
       ...new Set([
         ...pathValue.split(isWindows ? ';' : ':'),

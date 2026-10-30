@@ -187,15 +187,18 @@ function validateCrosswalk(crosswalk, transform) {
         if (!mapping.mappingStatus) {
             errors.push(`${mapping.id} has no explicit mappingStatus.`);
         }
-        if (
-            (!mapping.source || !mapping.source.canonicalCandidates
-                || mapping.source.canonicalCandidates.length === 0)
-            && !mapping.unmappedReason
-            && mapping.mappingStatus !== 'repositorySpecific'
-        ) {
+        const hasSource = !!mapping.source?.canonicalCandidates?.length;
+        if (!hasSource && !mapping.unmappedReason) {
             errors.push(`${mapping.id} has no source candidates or unmapped reason.`);
         }
+        if (!hasSource && mapping.onMissing?.action !== 'omit') {
+            errors.push(`${mapping.id} has no source candidates; its missing-value action must be omit.`);
+        }
         const slot = slotDerivations[mapping.target.field];
+        if (!hasSource && slot
+            && (slot.expr !== 'None' || slot.populated_from !== undefined || slot.value !== undefined)) {
+            errors.push(`${mapping.id} has no source candidates; its LinkML transformation must explicitly omit it with expr: None.`);
+        }
         const expectedSource = mapping.source
             && mapping.source.canonicalCandidates
             && mapping.source.canonicalCandidates[0]

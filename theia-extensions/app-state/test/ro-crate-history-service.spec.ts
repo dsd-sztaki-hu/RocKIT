@@ -10,11 +10,31 @@ import { Container } from 'inversify'
 import { AppStateService } from '../src/browser/state/app-state-service'
 import { RoCrateHistoryService } from '../src/browser/state/ro-crate-history-service'
 import type { RoCrateApprovalFile } from '../src/browser/state/ro-crate-approval'
+import {
+  collectRoCrateChangedProperties,
+  maintainRoCrateApprovalFile,
+} from '../src/browser/state/ro-crate-approval'
 
-(globalThis as any).window = {
-  clearTimeout: () => undefined,
-  setTimeout: () => 0,
-}
+const originalWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window')
+
+beforeAll(() => {
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    writable: true,
+    value: {
+      clearTimeout: () => undefined,
+      setTimeout: () => 0,
+    },
+  })
+})
+
+afterAll(() => {
+  if (originalWindowDescriptor) {
+    Object.defineProperty(globalThis, 'window', originalWindowDescriptor)
+  } else {
+    delete (globalThis as any).window
+  }
+})
 
 class InMemoryStorageService implements StorageService {
   private store = new Map<string, any>()
@@ -185,5 +205,57 @@ describe('RoCrateHistoryService', () => {
     historyService.redo()
     expect(appStateService.roCrate).toEqual(rejectedCrate)
     expect(appStateService.roCrateApproval).toEqual(resolvedApproval)
+  })
+
+  it('undoes and redoes an entity rename together with its moved approvals', async () => {
+    const { appStateService, historyService } = await createServices()
+    const beforeCrate = {
+      '@graph': [{ '@id': 'old.txt', '@type': 'File', name: 'Current name' }],
+    }
+    const renamedCrate = {
+      '@graph': [{ '@id': 'new.txt', '@type': 'File', name: 'Current name' }],
+    }
+    const beforeApproval: RoCrateApprovalFile = [
+      {
+        '@id': 'old.txt',
+        approval: [
+          {
+            propertyName: 'name',
+            previousValue: 'Previous name',
+            operation: 'update',
+            approved: false,
+            timestamp: '2026-06-01T10:00:00.000Z',
+          },
+        ],
+      },
+    ]
+    const renamedApproval = maintainRoCrateApprovalFile(
+      beforeApproval,
+      collectRoCrateChangedProperties(beforeCrate, renamedCrate),
+      '2026-06-12T10:00:00.000Z',
+    )
+
+    appStateService.roCrate = beforeCrate
+    appStateService.roCrateApproval = beforeApproval
+    historyService.clear()
+    historyService.applyRoCrateChange(renamedCrate, {
+      label: 'Rename entity',
+      mergeWithNext: true,
+    })
+    historyService.applyRoCrateApprovalChange(renamedApproval, {
+      label: 'Rename entity',
+      mergeWithPrevious: true,
+    })
+
+    expect(historyService.getDebugSnapshot().undoCount).toBe(1)
+    expect(appStateService.roCrateApproval?.[0]?.['@id']).toBe('new.txt')
+
+    historyService.undo()
+    expect(appStateService.roCrate).toEqual(beforeCrate)
+    expect(appStateService.roCrateApproval).toEqual(beforeApproval)
+
+    historyService.redo()
+    expect(appStateService.roCrate).toEqual(renamedCrate)
+    expect(appStateService.roCrateApproval).toEqual(renamedApproval)
   })
 })

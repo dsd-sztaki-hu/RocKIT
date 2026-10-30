@@ -10,6 +10,27 @@ import { Container } from 'inversify'
 import type { AppState } from '../src/browser/state/app-state'
 import { AppStateService } from '../src/browser/state/app-state-service'
 
+const originalWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window')
+
+beforeAll(() => {
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    writable: true,
+    value: {
+      clearTimeout: () => undefined,
+      setTimeout: () => 0,
+    },
+  })
+})
+
+afterAll(() => {
+  if (originalWindowDescriptor) {
+    Object.defineProperty(globalThis, 'window', originalWindowDescriptor)
+  } else {
+    delete (globalThis as any).window
+  }
+})
+
 /**
  * Very small fake StorageService to test persistence wiring.
  */
@@ -61,5 +82,32 @@ describe('AppStateService', () => {
     await (service2 as any).init()
     expect(service2.theme).toBe('dark')
     expect(service2.getState().notifications).toEqual(['hello'])
+  })
+
+  it('tracks dirty state against the latest successful save baseline', () => {
+    const container = new Container()
+    container.bind(StorageService).to(InMemoryStorageService).inSingletonScope()
+    container.bind(AppStateService).toSelf().inSingletonScope()
+    const service = container.get(AppStateService)
+    const original = {
+      '@graph': [{ '@id': './', '@type': 'Dataset', name: 'Original' }],
+    }
+    const edited = {
+      '@graph': [{ '@id': './', '@type': 'Dataset', name: 'Edited' }],
+    }
+
+    service.roCrate = original
+    service.markRoCrateSaved(original)
+    expect(service.dirty).toBe(false)
+    expect(service.isRoCrateDirty(original)).toBe(false)
+
+    service.roCrate = edited
+    service.dirty = service.isRoCrateDirty(edited)
+    expect(service.dirty).toBe(true)
+
+    service.markRoCrateSaved(edited)
+    expect(service.dirty).toBe(false)
+    expect(service.isRoCrateDirty(edited)).toBe(false)
+    expect(service.isRoCrateDirty(original)).toBe(true)
   })
 })

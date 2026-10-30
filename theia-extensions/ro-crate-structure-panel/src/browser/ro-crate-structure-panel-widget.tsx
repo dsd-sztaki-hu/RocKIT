@@ -179,8 +179,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected treeData = this.dig()
 
     protected expandedKeys: string[] = []
-    protected containerRef: React.RefObject<HTMLDivElement> = React.createRef()
-    protected treeViewportRef: React.RefObject<HTMLDivElement> = React.createRef()
+    protected containerRef: React.RefObject<HTMLDivElement | null> = React.createRef()
+    protected treeViewportRef: React.RefObject<HTMLDivElement | null> = React.createRef()
     protected treeHeight: number = 400
     protected dropTargetDatasetId?: string
     protected globalDragListenersAttached = false

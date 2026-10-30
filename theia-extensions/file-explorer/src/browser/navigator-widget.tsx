@@ -1058,7 +1058,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   protected restoreInputSelection(
-    inputRef: React.RefObject<HTMLInputElement>,
+    inputRef: React.RefObject<HTMLInputElement | null>,
     selection?: { start: number | null; end: number | null },
   ): void {
     if (!selection) {

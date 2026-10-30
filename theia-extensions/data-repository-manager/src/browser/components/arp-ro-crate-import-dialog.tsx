@@ -58,7 +58,9 @@ export class ArpRoCrateImportDialog extends AbstractDialog<ArpRoCrateImportInput
             nls.localize('rockit/dataRepository/importArpDescription', 'Enter the full handle or dataset URL for the ARP dataset to import.')}
         </div>
         <label className="arp-import-dialog__field">
-          <span className="arp-import-dialog__label">{nls.localize('rockit/dataRepository/datasetUrl', 'Dataset URL')}</span>
+          <span className="arp-import-dialog__label">
+            {this.options.fieldLabel ?? nls.localize('rockit/dataRepository/datasetUrl', 'Dataset URL')}
+          </span>
           <Input
             className="arp-import-dialog__input"
             value={this.datasetUrl}

@@ -1,6 +1,6 @@
 {
   "name": "@arpproject/rocrate-mcp-server",
-  "version": "1.3.0",
+  "version": "1.3.2",
   "description": "ARP RO-Crate MCP Server exposing RO-Crate editing and profile-aware validation tools for use in ARP",
   "license": "Apache-2.0",
   "author": {
@@ -26,13 +26,14 @@
     "test": "yarn build && node test/test-core.js && node test/test-cli.js && node test/test-installer.js && node test/test-mcp-server.js",
     "test:dashboard": "yarn build && node test/test-dashboard-collector.js && node test/test-dashboard-http.js",
     "test:socket": "yarn build && node test/test-socket-lifecycle.js",
-    "test:standalone-package": "yarn build:standalone && node test/test-standalone-package.js"
+    "test:standalone-package": "yarn build:standalone && node test/test-standalone-package.js",
+    "test:all": "yarn test && yarn test:dashboard && yarn test:socket && yarn test:standalone-package"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
     "rimraf": "^5.0.0",
     "shx": "^0.3.3",
-    "typescript": "~5.4.5"
+    "typescript": "~5.9.3"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",

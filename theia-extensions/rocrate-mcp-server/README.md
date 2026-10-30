@@ -838,12 +838,13 @@ Qwen Code can use the same `mcpServers` JSON shape as Gemini-style clients.
 }
 ```
 
-### OpenCode (`~/.config/opencode/config.json`)
+### OpenCode (`~/.config/opencode/opencode.json`)
 
-OpenCode expects `mcp` (not `mcpServers`):
+OpenCode 1 stores named servers directly under `mcp`:
 
 ```json
 {
+  "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "rocrate": {
       "type": "local",
@@ -857,6 +858,33 @@ OpenCode expects `mcp` (not `mcpServers`):
   }
 }
 ```
+
+OpenCode 2 uses `mcp.servers` and the inverse `disabled` option:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "rocrate": {
+        "type": "local",
+        "disabled": false,
+        "command": ["/absolute/path/to/node", "/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.rockit/rocrate-mcp-server.sock"],
+        "environment": {
+          "ROCRATE_MCP_DEFAULT_MODE": "local",
+          "ROCRATE_DASHBOARD_LOCALE": "en"
+        }
+      }
+    }
+  }
+}
+```
+
+OpenCode 2 continues to read supported OpenCode 1 MCP entries, so conversion is
+optional. The installer and RocKIT use the native V2 shape when the config
+already has an `mcp.servers` object; otherwise they write the compatible V1
+shape. `command` is one array containing the executable followed by its
+arguments.
 
 ## Authorship
 

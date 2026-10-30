@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
+import './recrate-react19-compat'
 import RecrateCrateBuilder from '@arpproject/recrate'
 import { nls } from '@theia/core/lib/common'
 import * as React from 'react'

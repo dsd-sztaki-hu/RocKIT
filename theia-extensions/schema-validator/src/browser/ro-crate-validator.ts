@@ -226,14 +226,18 @@ function validateWithCompiledRules(
       }
     }
 
-    if (['Select', 'SelectURL', 'SelectObject'].includes(inputType) && required) {
+    if (['Select', 'SelectURL', 'SelectObject'].includes(inputType)) {
       const fieldValues = Array.isArray(entity[name]) ? entity[name] : [entity[name]];
       for (const value of fieldValues) {
-        if (value && !values.includes(value)) {
+        const hasValue =
+          value !== undefined &&
+          value !== null &&
+          !(typeof value === 'string' && value.trim().length === 0);
+        if (hasValue && !values.includes(value)) {
           errors.push(
             errorFor(
               entity,
-              `${entity['@type']}`,
+              entityType,
               name,
               rule.fieldLabel,
               'Wrong value set',
@@ -246,13 +250,40 @@ function validateWithCompiledRules(
     }
 
     if (inputType === 'Number') {
-      const fieldValues = Array.isArray(entity[name]) ? entity[name].map(Number) : [Number(entity[name])];
-      for (const value of fieldValues) {
-        if (value && rule.minValue !== undefined && rule.minValue > value) {
+      const rawValues = Array.isArray(entity[name]) ? entity[name] : [entity[name]];
+      for (const rawValue of rawValues) {
+        const hasValue =
+          rawValue !== undefined &&
+          rawValue !== null &&
+          !(typeof rawValue === 'string' && rawValue.trim().length === 0);
+        if (!hasValue) {
+          continue;
+        }
+
+        const value =
+          typeof rawValue === 'number' || typeof rawValue === 'string'
+            ? Number(rawValue)
+            : Number.NaN;
+        if (!Number.isFinite(value)) {
           errors.push(
             errorFor(
               entity,
-              `${entity['@type']}`,
+              entityType,
+              name,
+              rule.fieldLabel,
+              'Wrong value set, a finite number is required',
+              'Hibás érték van beállítva, véges szám szükséges',
+              'WRONG_VALUE_SET',
+            ),
+          );
+          continue;
+        }
+
+        if (rule.minValue !== undefined && rule.minValue > value) {
+          errors.push(
+            errorFor(
+              entity,
+              entityType,
               name,
               rule.fieldLabel,
               `Wrong value set, the minimum value is ${rule.minValue}`,
@@ -262,11 +293,11 @@ function validateWithCompiledRules(
           );
         }
 
-        if (value && rule.maxValue !== undefined && rule.maxValue < value) {
+        if (rule.maxValue !== undefined && rule.maxValue < value) {
           errors.push(
             errorFor(
               entity,
-              `${entity['@type']}`,
+              entityType,
               name,
               rule.fieldLabel,
               `Wrong value set, the maximum value is ${rule.maxValue}`,
