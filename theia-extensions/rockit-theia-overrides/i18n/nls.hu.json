@@ -760,6 +760,17 @@
       "missingUpper": "HIÁNYZIK"
     },
     "dataRepository": {
+      "progress": {
+        "create": "Exportálás ide: {0}…",
+        "update": "Adatcsomag frissítése itt: {0}…",
+        "sync": "Szinkronizálás innen: {0}…",
+        "import": "Importálás innen: {0}…",
+        "link": "Adatcsomag összekapcsolása ezzel: {0}…",
+        "delete": "Adatcsomag törlése innen: {0}…",
+        "finishing": "Helyi repozitóriumadatok frissítése…",
+        "refreshing": "Helyi RO-Crate frissítése…",
+        "extracting": "Letöltött adatcsomag kicsomagolása…"
+      },
       "title": "Adatrepozitórium-kezelő",
       "openDocumentation": "Az Adatrepozitórium-kezelő dokumentációjának megnyitása",
       "importRemote": "Importálás repozitóriumból",

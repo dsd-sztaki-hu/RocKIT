@@ -1,3 +1,4 @@
+const { withRepositoryProgress } = require('./src/repository-progress')
 // ******************************************************************************************
 // Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
 //
@@ -88,11 +89,17 @@ async function activate(context) {
         token: repository.apiKey,
       }),
   })
-  const targetOperation = new ZenodoTargetOperation({ vscode, clientFactory: () => undefined })
+  const targetOperation = new ZenodoTargetOperation({
+    vscode,
+    clientFactory: () => undefined,
+  })
 
   context.subscriptions.push(
     vscode.commands.registerCommand(CREATE_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Exporting RO-Crate to Zenodo',
@@ -102,7 +109,10 @@ async function activate(context) {
       ),
     ),
     vscode.commands.registerCommand(UPDATE_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Updating Zenodo draft from RO-Crate',
@@ -112,7 +122,10 @@ async function activate(context) {
       ),
     ),
     vscode.commands.registerCommand(SYNC_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Syncing RO-Crate from Zenodo',
@@ -122,7 +135,10 @@ async function activate(context) {
       ),
     ),
     vscode.commands.registerCommand(IMPORT_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Importing Zenodo record as an RO-Crate',
@@ -132,7 +148,10 @@ async function activate(context) {
       ),
     ),
     vscode.commands.registerCommand(DELETE_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Deleting Zenodo deposition',
@@ -142,17 +161,26 @@ async function activate(context) {
       ),
     ),
     vscode.commands.registerCommand(LINK_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
-          title: input?.mode === 'preview' ? 'Checking Zenodo deposition' : 'Linking Zenodo deposition',
+          title:
+            input?.mode === 'preview'
+              ? 'Checking Zenodo deposition'
+              : 'Linking Zenodo deposition',
           cancellable: false,
         },
         (progress) => linkOperation.execute(input, progress),
       ),
     ),
     vscode.commands.registerCommand(VALIDATE_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Validating Zenodo connection',
@@ -188,7 +216,8 @@ async function activate(context) {
     importInput: {
       kind: 'url',
       title: 'Import Zenodo Record',
-      description: 'Enter a Zenodo upload URL in the format https://zenodo.org/uploads/{id}.',
+      description:
+        'Enter a Zenodo upload URL in the format https://zenodo.org/uploads/{id}.',
       placeholder: 'https://zenodo.org/uploads/1234567',
       fieldLabel: 'Zenodo Upload URL',
     },

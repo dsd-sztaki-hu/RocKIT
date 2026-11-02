@@ -54,14 +54,14 @@ class ArpClient {
   }
 
   getCollection(collectionId) {
-    return this.request(`${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}`)
+    return this.request(`${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}?returnChildCount=true`)
   }
 
   getCollectionContents(collectionId) {
     return this.request(`${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/contents`)
   }
 
-  searchCollections({ query = '*', subtree, perPage = 100, start = 0 } = {}) {
+  searchCollections({ query = '*', subtree, perPage = 100, start = 0, queryEntities } = {}) {
     const url = new URL(`${this.baseUrl}/api/v1/search`)
     url.searchParams.set('q', query)
     url.searchParams.set('type', 'dataverse')
@@ -70,6 +70,7 @@ class ArpClient {
     url.searchParams.set('per_page', String(perPage))
     url.searchParams.set('start', String(start))
     if (subtree) url.searchParams.set('subtree', subtree)
+    if (queryEntities !== undefined) url.searchParams.set('query_entities', String(queryEntities))
     return this.request(url.toString())
   }
 

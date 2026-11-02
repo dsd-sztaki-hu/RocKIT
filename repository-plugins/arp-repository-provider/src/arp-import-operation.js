@@ -5,6 +5,7 @@
 // ******************************************************************************************
 
 const { ArpCreateOperation } = require('./arp-create-operation')
+const { withRepositoryInput } = require('./repository-progress')
 
 const ARCHIVE_NAME = '.rockit-arp-import.zip'
 
@@ -18,7 +19,7 @@ class ArpImportOperation extends ArpCreateOperation {
     if (!datasetPid) {
       throw new Error('Could not extract a dataset handle or persistent ID from the dataset URL.')
     }
-    const parentUri = await this.importParent(input?.targetParentUri)
+    const parentUri = await withRepositoryInput(progress, () => this.importParent(input?.targetParentUri))
     if (!parentUri) return { providerId: 'arp', cancelled: true }
 
     progress.report({ message: 'Downloading ARP dataset archive...' })

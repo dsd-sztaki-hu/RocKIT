@@ -5,6 +5,7 @@
 // ******************************************************************************************
 
 const { DataverseCreateOperation } = require('./dataverse-create-operation')
+const { withRepositoryInput } = require('./repository-progress')
 
 const ARCHIVE_NAME = '.rockit-dataverse-import.zip'
 
@@ -20,7 +21,7 @@ class DataverseImportOperation extends DataverseCreateOperation {
         'Could not extract a dataset persistent ID from the Dataverse dataset URL.',
       )
     }
-    const parentUri = await this.importParent(input?.targetParentUri)
+    const parentUri = await withRepositoryInput(progress, () => this.importParent(input?.targetParentUri))
     if (!parentUri) return { providerId: 'dataverse', cancelled: true }
 
     const client = this.clientFactory(repository)

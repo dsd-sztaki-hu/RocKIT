@@ -6,10 +6,17 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *******************************************************************************************/
- 
- #rockit-loadmask-host {
-  position: relative;
-  z-index: 100000;
+
+#rockit-loadmask-host {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: auto;
+}
+
+[data-rockit-loadmask-blocked],
+[data-rockit-loadmask-blocked] * {
+  pointer-events: none !important;
 }
 
 .rockit-loadmask-overlay {

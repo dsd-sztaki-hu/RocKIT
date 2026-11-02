@@ -13,6 +13,8 @@ import type { CrosswalkRegistry } from 'crosswalk-manager/lib/browser/crosswalk-
 import { RepositoryProviderRegistry } from './repository-provider-registry'
 import { RepositoryProviderService } from './repository-provider-service'
 import { RepositoryCrosswalkService } from './services/repository-crosswalk-service'
+import { RepositoryOperationProgressService } from './repository-operation-progress'
+import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 
 jest.mock('@theia/workspace/lib/browser/workspace-service', () => ({
   WorkspaceService: class WorkspaceService {},
@@ -61,6 +63,28 @@ describe('RepositoryProviderService', () => {
       service.execute({ providerId: 'test-repository', operation: 'create', input }),
     ).resolves.toEqual({ remoteId: 'test-123' })
     expect(executeCommand).toHaveBeenCalledWith('rockit.testRepository.create', input)
+  })
+
+  it('passes a separate progress context to plugins and retains the overlay for application completion', async () => {
+    const { service, executeCommand } = createService()
+    const masks = new LoadMaskService()
+    const progress = new RepositoryOperationProgressService()
+    Object.assign(progress, { loadMaskService: masks })
+    Object.assign(service, { operationProgressService: progress })
+    const repository = { id: 'connection', providerId: 'test-repository', title: 'Test', baseUrl: 'https://example.invalid' }
+    executeCommand.mockImplementation(async (_command, input) => {
+      expect(input.operationId).toBe('checkpoint-id')
+      expect(input.progressContext.operationId).not.toBe('checkpoint-id')
+      service.reportOperationProgress({ ...input.progressContext, message: 'Uploading file', completedSteps: 1, totalSteps: 3 })
+      expect(masks.state).toMatchObject({ visible: true, message: 'Uploading file', progress: { worked: 1, total: 3 } })
+      return { remoteId: 'test-123' }
+    })
+    await service.withOperationProgress(repository, 'create', async () => {
+      await service.executeForRepository(repository, 'create', { repository, operationId: 'checkpoint-id' })
+      expect(masks.state.visible).toBe(true)
+      expect(masks.state.message).toBe('Updating local repository data...')
+    })
+    expect(masks.state.visible).toBe(false)
   })
 
   it('validates the selected crosswalk and sends only its id to providers', async () => {

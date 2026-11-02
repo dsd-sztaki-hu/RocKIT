@@ -5,6 +5,7 @@
 // ******************************************************************************************
 
 import { CommandService } from '@theia/core/lib/common'
+import { nls } from '@theia/core/lib/common/nls'
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -21,6 +22,7 @@ import { DataRepositoryConfig } from './types'
 import { RepositoryCrosswalkService } from './services/repository-crosswalk-service'
 import { mergeRoCratesForSync } from './services/ro-crate-sync-merge'
 import { RepositorySyncMode } from './types'
+import { RepositoryOperationProgressService } from './repository-operation-progress'
 import {
   appendExportLogEvent,
   normalizeExportLogEntries,
@@ -38,6 +40,29 @@ type JsonObject = Record<string, unknown>
  */
 @injectable()
 export class RepositoryProviderService {
+  @inject(RepositoryOperationProgressService)
+  protected readonly operationProgressService: RepositoryOperationProgressService
+
+  beginOperationProgress(repository: DataRepositoryConfig, operation: RepositoryOperation, message?: string) {
+    return this.operationProgressService.begin(repository, operation, message)
+  }
+
+  withOperationProgress<T>(repository: DataRepositoryConfig, operation: RepositoryOperation, task: () => Promise<T>): Promise<T> {
+    return this.operationProgressService.run(repository, operation, task)
+  }
+
+  reportOperationProgress(value: import('./repository-operation-progress').RepositoryProgressReport): void {
+    this.operationProgressService.report(value)
+  }
+
+  updateOperationProgress(repository: DataRepositoryConfig, operation: RepositoryOperation, message: string): void {
+    const context = this.operationProgressService?.contextFor(repository, operation)
+    if (context) this.operationProgressService.report({ ...context, message })
+  }
+
+  withUserInput<T>(task: () => Promise<T>): Promise<T> {
+    return this.operationProgressService.withUserInput(task)
+  }
   constructor(
     @inject(RepositoryProviderRegistry)
     protected readonly registry: RepositoryProviderRegistry,
@@ -112,6 +137,7 @@ export class RepositoryProviderService {
       operation,
       input: operationInput,
     })
+    this.updateOperationProgress(repository, operation, nls.localize('rockit/dataRepository/progress/finishing', 'Updating local repository data...'))
     if (repository.providerId === 'zenodo' && result && operation === 'import') {
       return this.completeZenodoImport(repository, result as JsonObject) as TResult
     }
@@ -253,6 +279,9 @@ export class RepositoryProviderService {
       )
     }
 
-    return this.commandService.executeCommand<TResult>(commandId, invocation.input)
+    const repository = (invocation.input as { repository?: DataRepositoryConfig })?.repository
+    const progressContext = repository && this.operationProgressService?.contextFor(repository, invocation.operation)
+    const input = progressContext ? { ...(invocation.input as object), progressContext } : invocation.input
+    return this.commandService.executeCommand<TResult>(commandId, input)
   }
 }

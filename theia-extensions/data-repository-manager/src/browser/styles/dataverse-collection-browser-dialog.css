@@ -84,6 +84,13 @@
     position: relative;
 }
 
+/* A focused tree item wraps its expanded descendants; suppress the global
+   focus outline on that wrapper so it does not frame the entire branch. */
+.dataverse-tree .MuiTreeItem-root:focus,
+.dataverse-tree .MuiTreeItem-root:focus-visible {
+    outline: none !important;
+}
+
 .dataverse-tree__filtering {
     position: sticky;
     top: 0;

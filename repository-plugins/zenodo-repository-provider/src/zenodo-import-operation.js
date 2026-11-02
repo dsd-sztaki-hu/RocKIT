@@ -12,6 +12,7 @@ const {
   serializeExportLogEntries,
 } = require('./export-log')
 const { ZenodoCreateOperation } = require('./zenodo-create-operation')
+const { withRepositoryInput } = require('./repository-progress')
 const { ZenodoFileHashStore } = require('./zenodo-file-hash-store')
 
 const METADATA_FILE = 'ro-crate-metadata.json'
@@ -30,7 +31,7 @@ class ZenodoImportOperation extends ZenodoCreateOperation {
     if (!repository || typeof repository !== 'object') {
       throw new Error('The Zenodo repository configuration is missing.')
     }
-    const recordUrl = await this.recordUrl(input?.recordUrl, repository.baseUrl)
+    const recordUrl = await withRepositoryInput(progress, () => this.recordUrl(input?.recordUrl, repository.baseUrl))
     if (!recordUrl) return { cancelled: true }
     const recordId = this.extractRecordId(recordUrl, repository.baseUrl)
     if (!recordId) {
@@ -38,7 +39,7 @@ class ZenodoImportOperation extends ZenodoCreateOperation {
         `Enter a Zenodo upload URL such as ${this.uploadUrlExample(repository.baseUrl)}.`,
       )
     }
-    const parentUri = await this.importParent(input?.targetParentUri)
+    const parentUri = await withRepositoryInput(progress, () => this.importParent(input?.targetParentUri))
     if (!parentUri) return { cancelled: true }
 
     progress.report({ message: 'Loading remote Zenodo record...' })

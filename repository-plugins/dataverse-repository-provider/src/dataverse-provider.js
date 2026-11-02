@@ -1,3 +1,4 @@
+const { withRepositoryProgress } = require('./repository-progress')
 // ******************************************************************************************
 // Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
 //
@@ -48,13 +49,13 @@ async function activateDataverseProvider(
   const syncOperation = new DataverseSyncOperation({ vscode, clientFactory })
   const destinationOperation = new DataverseDestinationOperation({ clientFactory })
   context.subscriptions.push(
-    vscode.commands.registerCommand(LIST_DESTINATIONS_COMMAND, input =>
+    vscode.commands.registerCommand(LIST_DESTINATIONS_COMMAND, (input) =>
       destinationOperation.list(input),
     ),
-    vscode.commands.registerCommand(SEARCH_DESTINATIONS_COMMAND, input =>
+    vscode.commands.registerCommand(SEARCH_DESTINATIONS_COMMAND, (input) =>
       destinationOperation.search(input),
     ),
-    vscode.commands.registerCommand(CHECK_DESTINATION_COMMAND, input =>
+    vscode.commands.registerCommand(CHECK_DESTINATION_COMMAND, (input) =>
       destinationOperation.check(input),
     ),
   )
@@ -65,22 +66,25 @@ async function activateDataverseProvider(
       if (!repository || typeof collectionId !== 'string' || !collectionId.trim()) {
         throw new Error('Dataverse metadata blocks require a repository and collection.')
       }
-      const result = await clientFactory(repository)
-        .getCollectionMetadataBlocks(collectionId)
+      const result =
+        await clientFactory(repository).getCollectionMetadataBlocks(collectionId)
       if (!result?.ok || result.payload?.status === 'ERROR') {
         throw new Error(
           `Dataverse metadata blocks could not be loaded (${result?.status ?? 'unknown'}).`,
         )
       }
       const aliases = (Array.isArray(result.payload?.data) ? result.payload.data : [])
-        .map(block => typeof block?.name === 'string' ? block.name.trim() : '')
+        .map((block) => (typeof block?.name === 'string' ? block.name.trim() : ''))
         .filter(Boolean)
       return { aliases: [...new Set(['citation', ...aliases])] }
     }),
   )
   context.subscriptions.push(
     vscode.commands.registerCommand(LINK_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Inspecting Dataverse dataset',
@@ -92,7 +96,10 @@ async function activateDataverseProvider(
   )
   context.subscriptions.push(
     vscode.commands.registerCommand(IMPORT_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Importing Dataverse dataset',
@@ -104,7 +111,10 @@ async function activateDataverseProvider(
   )
   context.subscriptions.push(
     vscode.commands.registerCommand(SYNC_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Synchronizing Dataverse dataset',
@@ -116,7 +126,10 @@ async function activateDataverseProvider(
   )
   context.subscriptions.push(
     vscode.commands.registerCommand(UPDATE_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Updating Dataverse dataset',
@@ -128,7 +141,10 @@ async function activateDataverseProvider(
   )
   context.subscriptions.push(
     vscode.commands.registerCommand(DELETE_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Deleting Dataverse draft',
@@ -140,7 +156,10 @@ async function activateDataverseProvider(
   )
   context.subscriptions.push(
     vscode.commands.registerCommand(CREATE_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Exporting RO-Crate to Dataverse',
@@ -152,7 +171,10 @@ async function activateDataverseProvider(
   )
   context.subscriptions.push(
     vscode.commands.registerCommand(VALIDATE_COMMAND, (input) =>
-      vscode.window.withProgress(
+      withRepositoryProgress(
+        vscode,
+        PROVIDER_ID,
+        input,
         {
           location: vscode.ProgressLocation.Notification,
           title: 'Validating Dataverse connection',
