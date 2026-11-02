@@ -95,6 +95,9 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         commands.registerCommand({ id: RepositoryProviderCommands.EXECUTE }, {
             execute: invocation => this.repositoryProviderService.execute(invocation)
         });
+        commands.registerCommand({ id: RepositoryProviderCommands.REPORT_PROGRESS }, {
+            execute: report => this.repositoryProviderService.reportOperationProgress(report)
+        });
 
         commands.registerCommand({ id: RepositoryProviderCommands.CHECKPOINT_CREATE_EXPORT }, {
             execute: (checkpoint: ArpProviderCreateCheckpoint | DataverseProviderCreateCheckpoint) =>
@@ -122,7 +125,7 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
                 if (prompt?.kind !== 'form') {
                     throw new Error(`Unsupported repository metadata prompt '${String(prompt?.kind)}'.`);
                 }
-                return new RepositoryRequiredMetadataDialog(prompt).open();
+                return this.repositoryProviderService.withUserInput(() => new RepositoryRequiredMetadataDialog(prompt).open());
             }
         });
 

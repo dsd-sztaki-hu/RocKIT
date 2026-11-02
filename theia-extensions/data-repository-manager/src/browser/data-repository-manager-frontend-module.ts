@@ -25,6 +25,7 @@ import { DataRepositoryExportDeleteService } from './services/data-repository-ex
 import { DataverseMetadataMappingService } from './services/dataverse-metadata-mapping-service'
 import { RepositoryProviderRegistry } from './repository-provider-registry'
 import { RepositoryProviderService } from './repository-provider-service'
+import { RepositoryOperationProgressService } from './repository-operation-progress'
 import { BundledCrosswalk } from 'crosswalk-manager/lib/browser/crosswalk-manager-types'
 import { BUNDLED_REPOSITORY_CROSSWALKS } from './bundled-crosswalks'
 import { RepositoryCrosswalkService } from './services/repository-crosswalk-service'
@@ -46,6 +47,7 @@ export default new ContainerModule((bind) => {
   bind(DataverseMetadataMappingService).toSelf().inSingletonScope()
   bind(RepositoryProviderRegistry).toSelf().inSingletonScope()
   bind(RepositoryProviderService).toSelf().inSingletonScope()
+  bind(RepositoryOperationProgressService).toSelf().inSingletonScope()
   bind(RepositoryCrosswalkService).toSelf().inSingletonScope()
 
   // 2. Widget

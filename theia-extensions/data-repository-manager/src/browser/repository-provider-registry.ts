@@ -13,6 +13,7 @@ export const RepositoryProviderCommands = {
   UNREGISTER: 'rockit.repositories.unregisterProvider',
   LIST: 'rockit.repositories.listProviders',
   EXECUTE: 'rockit.repositories.executeOperation',
+  REPORT_PROGRESS: 'rockit.repositories.reportProgress',
   PROMPT_REQUIRED_METADATA: 'rockit.repositories.promptRequiredMetadata',
   CHECKPOINT_CREATE_EXPORT: 'rockit.repositories.checkpointCreateExport',
   CHECKPOINT_UPDATE_EXPORT: 'rockit.repositories.checkpointUpdateExport',

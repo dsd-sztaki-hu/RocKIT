@@ -14,6 +14,7 @@ import {
 } from 'crosswalk-manager/lib/browser/zenodo-crosswalk-engine'
 
 import { RepositoryRequiredMetadataDialog } from '../components/repository-required-metadata-dialog'
+import { RepositoryOperationProgressService } from '../repository-operation-progress'
 
 type JsonObject = Record<string, unknown>
 
@@ -48,6 +49,8 @@ const PRESERVED_ZENODO_ACCESS_FIELDS = [
  */
 @injectable()
 export class RepositoryCrosswalkService {
+  @inject(RepositoryOperationProgressService)
+  protected readonly operationProgressService: RepositoryOperationProgressService
   constructor(
     @inject(CrosswalkRegistry)
     protected readonly registry: CrosswalkRegistry,
@@ -88,11 +91,14 @@ export class RepositoryCrosswalkService {
     )
 
     if (fallbackAccessRight || needsAccessPolicy) {
-      const supplied = await this.promptForZenodoAccessPolicy(
+      const prompt = () => this.promptForZenodoAccessPolicy(
         metadata,
         crosswalk,
         input.repositoryOptions?.license ?? [],
       )
+      const supplied = this.operationProgressService
+        ? await this.operationProgressService.withUserInput(prompt)
+        : await prompt()
       Object.assign(metadata, supplied)
       for (const field of ['license', 'embargo_date', 'access_conditions']) {
         if (!Object.prototype.hasOwnProperty.call(supplied, field)) {

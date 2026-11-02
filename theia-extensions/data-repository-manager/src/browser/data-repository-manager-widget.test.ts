@@ -143,7 +143,6 @@ const createWidget = () => {
     {} as any,
     {} as any,
     {} as any,
-    {} as any,
     workspaceService as any,
     providerService as any,
     crosswalkRegistryService as any,
