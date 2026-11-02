@@ -63,6 +63,34 @@
     color: var(--theia-descriptionForeground);
 }
 
+.data-repo-selector__missing-type-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 10px 12px;
+    border: 1px solid var(--theia-inputValidation-warningBorder, #b89500);
+    border-radius: 4px;
+    background-color: var(--theia-inputValidation-warningBackground, rgba(184, 149, 0, 0.15));
+    color: var(--theia-inputValidation-warningForeground, var(--theia-foreground));
+    flex-shrink: 0;
+}
+
+.data-repo-selector__missing-type-warning-icon {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    font-size: 20px !important;
+}
+
+.data-repo-selector__missing-type-warning-title {
+    margin-bottom: 2px;
+    font-weight: 600;
+}
+
+.data-repo-selector__missing-type-warning-description {
+    line-height: 1.4;
+}
+
 /* Body / List */
 .data-repo-selector__body {
     flex: 1;
@@ -187,6 +215,18 @@
     font-size: var(--theia-ui-font-size1);
     color: var(--theia-foreground);
     white-space: nowrap;
+}
+
+.data-repo-selector__missing-type-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    color: var(--theia-editorWarning-foreground, var(--theia-inputValidation-warningBorder, #cca700));
+}
+
+.data-repo-selector__missing-type-indicator svg {
+    font-size: 17px;
 }
 
 .data-repo-selector__edit-repository {

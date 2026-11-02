@@ -12,6 +12,16 @@ import { ApplicationServer } from '@theia/core/lib/common/application-protocol';
 import { openRockitDocumentationPage, ROCKIT_DOCUMENTATION_PAGES } from 'rockit-common/lib/browser';
 import { DATA_REPOSITORY_MANAGER_WIDGET_ID, DATA_REPOSITORY_MANAGER_LABEL, DataRepositoryManagerWidget } from './data-repository-manager-widget';
 import { nls } from '@theia/core/lib/common/nls';
+import {
+    RepositoryProviderCommands,
+    RepositoryRequiredMetadataPrompt,
+    RepositoryProviderRegistration,
+    RepositoryProviderRegistry
+} from './repository-provider-registry';
+import { RepositoryProviderService } from './repository-provider-service';
+import { RepositoryRequiredMetadataDialog } from './components/repository-required-metadata-dialog';
+import { ArpProviderCreateCheckpoint, ArpProviderSyncCheckpoint, ArpProviderUpdateCheckpoint, ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
+import { DataverseProviderCreateCheckpoint, DataverseProviderSyncCheckpoint, DataverseProviderUpdateCheckpoint, NativeDataverseExportService } from './services/native-dataverse-export-service';
 
 export namespace DataRepositoryManagerCommands {
     export const OPEN: Command = {
@@ -48,7 +58,11 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         @inject(WidgetManager) protected readonly widgetManager: WidgetManager,
         @inject(ApplicationShell) protected readonly shell: ApplicationShell,
         @inject(ApplicationServer) protected readonly applicationServer: ApplicationServer,
-        @inject(OpenerService) protected readonly openerService: OpenerService
+        @inject(OpenerService) protected readonly openerService: OpenerService,
+        @inject(RepositoryProviderRegistry) protected readonly repositoryProviderRegistry: RepositoryProviderRegistry,
+        @inject(RepositoryProviderService) protected readonly repositoryProviderService: RepositoryProviderService,
+        @inject(ArpRoCrateExportService) protected readonly arpExportService: ArpRoCrateExportService,
+        @inject(NativeDataverseExportService) protected readonly nativeDataverseExportService: NativeDataverseExportService
     ) { }
 
     async initializeLayout(): Promise<void> {
@@ -63,6 +77,56 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
     }
 
     registerCommands(commands: CommandRegistry): void {
+        commands.registerCommand({ id: RepositoryProviderCommands.REGISTER }, {
+            execute: (provider: RepositoryProviderRegistration) => {
+                this.repositoryProviderRegistry.register(provider);
+            }
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.UNREGISTER }, {
+            execute: (providerId: string, extensionId?: string) =>
+                this.repositoryProviderRegistry.unregister(providerId, extensionId)
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.LIST }, {
+            execute: () => this.repositoryProviderRegistry.list()
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.EXECUTE }, {
+            execute: invocation => this.repositoryProviderService.execute(invocation)
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.CHECKPOINT_CREATE_EXPORT }, {
+            execute: (checkpoint: ArpProviderCreateCheckpoint | DataverseProviderCreateCheckpoint) =>
+                checkpoint?.providerId === 'dataverse'
+                    ? this.nativeDataverseExportService.handleProviderCreateCheckpoint(checkpoint)
+                    : this.arpExportService.handleProviderCreateCheckpoint(checkpoint)
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.CHECKPOINT_UPDATE_EXPORT }, {
+            execute: (checkpoint: ArpProviderUpdateCheckpoint | DataverseProviderUpdateCheckpoint) =>
+                checkpoint?.providerId === 'dataverse'
+                    ? this.nativeDataverseExportService.handleProviderUpdateCheckpoint(checkpoint)
+                    : this.arpExportService.handleProviderUpdateCheckpoint(checkpoint)
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.CHECKPOINT_SYNC_EXPORT }, {
+            execute: (checkpoint: ArpProviderSyncCheckpoint | DataverseProviderSyncCheckpoint) =>
+                checkpoint?.providerId === 'dataverse'
+                    ? this.nativeDataverseExportService.handleProviderSyncCheckpoint(checkpoint)
+                    : this.arpExportService.handleProviderSyncCheckpoint(checkpoint)
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.PROMPT_REQUIRED_METADATA }, {
+            execute: async (prompt: RepositoryRequiredMetadataPrompt) => {
+                if (prompt?.kind !== 'form') {
+                    throw new Error(`Unsupported repository metadata prompt '${String(prompt?.kind)}'.`);
+                }
+                return new RepositoryRequiredMetadataDialog(prompt).open();
+            }
+        });
+
+
         commands.registerCommand(DataRepositoryManagerCommands.OPEN, {
             execute: async () => {
                 const widget = await this.widgetManager.getOrCreateWidget(DATA_REPOSITORY_MANAGER_WIDGET_ID);

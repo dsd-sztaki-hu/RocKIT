@@ -4,8 +4,8 @@
   "private": true,
   "description": "RocKIT agent instructions and managed docs",
   "dependencies": {
-    "@theia/core": "1.65.2",
-    "@theia/filesystem": "1.65.2",
+    "@theia/core": "1.76.0",
+    "@theia/filesystem": "1.76.0",
     "tslib": "^2.6.2"
   },
   "theiaExtensions": [
@@ -35,7 +35,7 @@
     "watch": "node scripts/generate-agents-template.js && node scripts/generate-agent-docs-bundle.js && tsc -b -w --preserveWatchOutput"
   },
   "devDependencies": {
-    "@theia/ext-scripts": "1.65.2",
+    "@theia/ext-scripts": "1.76.0",
     "rimraf": "6.0.0"
   },
   "nyc": {

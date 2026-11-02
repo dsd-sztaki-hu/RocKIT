@@ -197,6 +197,9 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<ProfileInfo[] |
 
     protected selectedSchemas: ProfileInfo[] | undefined;
     private reactRoot: Root | undefined;
+    private dialogBlock: HTMLElement | undefined;
+    private readonly interactionDisposers: Array<() => void> = [];
+    private stopActiveInteraction: (() => void) | undefined;
 
     constructor(
         protected readonly profileManager: ProfileManagerService,
@@ -215,6 +218,7 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<ProfileInfo[] |
         
         this.contentNode.style.display = 'flex';
         this.contentNode.style.flexDirection = 'column';
+        this.contentNode.classList.add('schema-selector__dialog-content');
         // Actions are rendered in the React footer, so the native Theia control row is unused.
         this.controlPanel.remove();
     }
@@ -254,15 +258,266 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<ProfileInfo[] |
 
     protected onAfterAttach(msg: Message): void {
         super.onAfterAttach(msg);
-        requestAnimationFrame(() => this.render());
+        requestAnimationFrame(() => {
+            this.render();
+            requestAnimationFrame(() => this.enableWindowInteractions());
+        });
     }
 
     protected onBeforeDetach(msg: Message): void {
+        this.disableWindowInteractions();
         if (this.reactRoot) {
             this.reactRoot.unmount();
             this.reactRoot = undefined;
         }
         super.onBeforeDetach(msg);
+    }
+
+    /**
+     * Turns the modal shell into a small desktop-style window. Moving uses a
+     * compositor transform, while resizing only updates a cheap outline until
+     * pointer-up. This keeps the Ant table from being laid out for every pixel.
+     */
+    private enableWindowInteractions(): void {
+        if (this.dialogBlock) {
+            return;
+        }
+
+        const dialogBlock = this.node.querySelector<HTMLElement>('.dialogBlock');
+        const titleBar = dialogBlock?.querySelector<HTMLElement>('.dialogTitle');
+        if (!dialogBlock || !titleBar) {
+            return;
+        }
+
+        const initialRect = dialogBlock.getBoundingClientRect();
+        this.dialogBlock = dialogBlock;
+        dialogBlock.classList.add('schema-selector__dialog-window');
+        dialogBlock.style.position = 'fixed';
+        dialogBlock.style.left = `${initialRect.left}px`;
+        dialogBlock.style.top = `${initialRect.top}px`;
+        dialogBlock.style.width = `${initialRect.width}px`;
+        dialogBlock.style.height = `${initialRect.height}px`;
+        dialogBlock.style.minWidth = 'min(520px, calc(100vw - 8px))';
+        dialogBlock.style.minHeight = 'min(320px, calc(100vh - 8px))';
+        dialogBlock.style.maxWidth = 'calc(100vw - 8px)';
+        dialogBlock.style.maxHeight = 'calc(100vh - 8px)';
+        dialogBlock.style.margin = '0';
+
+        // The shell owns the geometry after initialization; the content fills it.
+        this.contentNode.style.width = 'auto';
+        this.contentNode.style.height = 'auto';
+        this.contentNode.style.maxWidth = 'none';
+        this.contentNode.style.maxHeight = 'none';
+
+        const moveHandler = (event: PointerEvent) => this.beginMove(event, dialogBlock);
+        titleBar.addEventListener('pointerdown', moveHandler);
+        this.interactionDisposers.push(() => titleBar.removeEventListener('pointerdown', moveHandler));
+
+        for (const direction of ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']) {
+            const handle = document.createElement('div');
+            handle.className = `schema-selector__resize-handle schema-selector__resize-handle--${direction}`;
+            handle.dataset.direction = direction;
+            handle.setAttribute('aria-hidden', 'true');
+            const resizeHandler = (event: PointerEvent) => this.beginResize(event, dialogBlock, direction);
+            handle.addEventListener('pointerdown', resizeHandler);
+            dialogBlock.appendChild(handle);
+            this.interactionDisposers.push(() => {
+                handle.removeEventListener('pointerdown', resizeHandler);
+                handle.remove();
+            });
+        }
+    }
+
+    private disableWindowInteractions(): void {
+        this.stopActiveInteraction?.();
+        this.stopActiveInteraction = undefined;
+        while (this.interactionDisposers.length) {
+            this.interactionDisposers.pop()?.();
+        }
+        this.dialogBlock = undefined;
+    }
+
+    private beginMove(event: PointerEvent, dialogBlock: HTMLElement): void {
+        if (event.button !== 0) {
+            return;
+        }
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('.closeButton, button, a, input, select, textarea')) {
+            return;
+        }
+
+        event.preventDefault();
+        this.stopActiveInteraction?.();
+
+        const start = dialogBlock.getBoundingClientRect();
+        const startX = event.clientX;
+        const startY = event.clientY;
+        let frame: number | undefined;
+        let nextLeft = start.left;
+        let nextTop = start.top;
+
+        const paint = () => {
+            frame = undefined;
+            dialogBlock.style.transform = `translate3d(${nextLeft - start.left}px, ${nextTop - start.top}px, 0)`;
+        };
+        const move = (moveEvent: PointerEvent) => {
+            const margin = 4;
+            nextLeft = Math.min(
+                Math.max(margin, start.left + moveEvent.clientX - startX),
+                Math.max(margin, window.innerWidth - start.width - margin),
+            );
+            nextTop = Math.min(
+                Math.max(margin, start.top + moveEvent.clientY - startY),
+                Math.max(margin, window.innerHeight - start.height - margin),
+            );
+            if (frame === undefined) {
+                frame = requestAnimationFrame(paint);
+            }
+        };
+        const cleanup = () => {
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', finish);
+            window.removeEventListener('pointercancel', cancel);
+            if (frame !== undefined) {
+                cancelAnimationFrame(frame);
+                frame = undefined;
+            }
+            dialogBlock.style.willChange = '';
+            document.body.classList.remove('schema-selector--moving');
+            if (this.stopActiveInteraction === cancel) {
+                this.stopActiveInteraction = undefined;
+            }
+        };
+        const cancel = () => {
+            dialogBlock.style.transform = '';
+            cleanup();
+        };
+        const finish = (upEvent: PointerEvent) => {
+            move(upEvent);
+            if (frame !== undefined) {
+                cancelAnimationFrame(frame);
+                frame = undefined;
+            }
+            dialogBlock.style.transform = '';
+            dialogBlock.style.left = `${nextLeft}px`;
+            dialogBlock.style.top = `${nextTop}px`;
+            cleanup();
+        };
+
+        dialogBlock.style.willChange = 'transform';
+        document.body.classList.add('schema-selector--moving');
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', finish);
+        window.addEventListener('pointercancel', cancel);
+        this.stopActiveInteraction = cancel;
+    }
+
+    private beginResize(
+        event: PointerEvent,
+        dialogBlock: HTMLElement,
+        direction: string,
+    ): void {
+        if (event.button !== 0) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        this.stopActiveInteraction?.();
+
+        const start = dialogBlock.getBoundingClientRect();
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const preview = document.createElement('div');
+        preview.className = 'schema-selector__resize-preview';
+        document.body.appendChild(preview);
+
+        let frame: number | undefined;
+        let geometry = { left: start.left, top: start.top, width: start.width, height: start.height };
+
+        const calculateGeometry = (pointerEvent: PointerEvent) => {
+            const margin = 4;
+            const minWidth = Math.min(520, window.innerWidth - margin * 2);
+            const minHeight = Math.min(320, window.innerHeight - margin * 2);
+            const deltaX = pointerEvent.clientX - startX;
+            const deltaY = pointerEvent.clientY - startY;
+            let { left, top, width, height } = geometry;
+
+            if (direction.includes('e')) {
+                width = Math.min(
+                    Math.max(minWidth, start.width + deltaX),
+                    window.innerWidth - start.left - margin,
+                );
+                left = start.left;
+            } else if (direction.includes('w')) {
+                width = Math.min(
+                    Math.max(minWidth, start.width - deltaX),
+                    start.right - margin,
+                );
+                left = start.right - width;
+            }
+
+            if (direction.includes('s')) {
+                height = Math.min(
+                    Math.max(minHeight, start.height + deltaY),
+                    window.innerHeight - start.top - margin,
+                );
+                top = start.top;
+            } else if (direction.includes('n')) {
+                height = Math.min(
+                    Math.max(minHeight, start.height - deltaY),
+                    start.bottom - margin,
+                );
+                top = start.bottom - height;
+            }
+
+            geometry = { left, top, width, height };
+        };
+        const paint = () => {
+            frame = undefined;
+            preview.style.left = `${geometry.left}px`;
+            preview.style.top = `${geometry.top}px`;
+            preview.style.width = `${geometry.width}px`;
+            preview.style.height = `${geometry.height}px`;
+        };
+        const move = (moveEvent: PointerEvent) => {
+            calculateGeometry(moveEvent);
+            if (frame === undefined) {
+                frame = requestAnimationFrame(paint);
+            }
+        };
+        const cleanup = () => {
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', finish);
+            window.removeEventListener('pointercancel', cleanup);
+            if (frame !== undefined) {
+                cancelAnimationFrame(frame);
+                frame = undefined;
+            }
+            preview.remove();
+            document.body.classList.remove('schema-selector--resizing');
+            if (this.stopActiveInteraction === cleanup) {
+                this.stopActiveInteraction = undefined;
+            }
+        };
+        const finish = (upEvent: PointerEvent) => {
+            calculateGeometry(upEvent);
+            dialogBlock.style.left = `${geometry.left}px`;
+            dialogBlock.style.top = `${geometry.top}px`;
+            dialogBlock.style.width = `${geometry.width}px`;
+            dialogBlock.style.height = `${geometry.height}px`;
+            cleanup();
+            // Consumers that cache viewport sizes should update once, after the
+            // expensive content has received its final dimensions.
+            requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+        };
+
+        paint();
+        document.body.classList.add('schema-selector--resizing');
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', finish);
+        window.addEventListener('pointercancel', cleanup);
+        this.stopActiveInteraction = cleanup;
     }
 }
 

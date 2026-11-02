@@ -18,6 +18,7 @@ export default async (): Promise<Config.InitialOptions> => ({
     // jest resolves to the ESM variant of these packages, breaking the tests
     // by forcing the resolve via Node, the commonjs variant is used
     moduleNameMapper: {
+        '\\.(css)$': '<rootDir>/configs/style-mock.js',
         '^vscode-languageserver-types': require.resolve('vscode-languageserver-types'),
         '^msgpackr': require.resolve('msgpackr'),
     }

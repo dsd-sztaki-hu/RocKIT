@@ -16,6 +16,7 @@
 // *****************************************************************************
 
 import { ReactWidget } from '@theia/core/lib/browser'
+import * as React from '@theia/core/shared/react'
 import { nls } from '@theia/core/lib/common/nls'
 import { injectable } from '@theia/core/shared/inversify'
 import type { PropertyViewContentWidget } from './property-view-content-widget'
@@ -46,7 +47,7 @@ class EmptyPropertyViewWidget extends ReactWidget implements PropertyViewContent
     return this.emptyComponent
   }
 
-  protected emptyComponent: JSX.Element = (
+  protected emptyComponent: React.JSX.Element = (
     <div className={'theia-widget-noInfo'}>
       {nls.localize('rockit/filePreview/noProperties', 'No properties available.')}
     </div>

@@ -1140,6 +1140,30 @@
       "lossiness": "possible; mapping requires review for the active profile"
     },
     {
+      "id": "zenodo.imprint_publisher",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.imprint_publisher",
+        "field": "imprint_publisher",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/imprint_publisher"
+      },
+      "mappingStatus": "repositorySpecific",
+      "transformations": [],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "Imprint publisher is not exported without a verified semantic equivalent.",
+      "unmappedReason": "No verified canonical source identifies the publication imprint publisher; a dataset producer is not assumed to be its publisher."
+    },
+    {
       "id": "zenodo.journal_issue",
       "direction": "both",
       "source": {

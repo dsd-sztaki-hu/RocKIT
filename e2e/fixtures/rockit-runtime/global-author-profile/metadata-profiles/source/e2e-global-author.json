@@ -1,0 +1,43 @@
+{
+  "metadata": {
+    "name": "E2E Global Author",
+    "version": "1.0.0",
+    "description": "Local deterministic author profile used only by Electron E2E tests."
+  },
+  "classes": {
+    "Dataset": {
+      "inputs": [
+        {
+          "id": "http://purl.org/dc/terms/creator",
+          "name": "author",
+          "label": "Author",
+          "help": "An author selected from the Global Entity Library.",
+          "type": ["author"],
+          "required": false,
+          "multiple": true
+        }
+      ]
+    },
+    "author": {
+      "label": "Author",
+      "inputs": [
+        {
+          "id": "https://dataverse.org/schema/citation/authorName",
+          "name": "authorName",
+          "label": "Author Name",
+          "type": ["Text"],
+          "required": true,
+          "multiple": false
+        },
+        {
+          "id": "https://dataverse.org/schema/citation/authorAffiliation",
+          "name": "authorAffiliation",
+          "label": "Affiliation",
+          "type": ["Text"],
+          "required": false,
+          "multiple": false
+        }
+      ]
+    }
+  }
+}

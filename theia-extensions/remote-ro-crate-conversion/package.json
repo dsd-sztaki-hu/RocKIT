@@ -15,13 +15,13 @@
     "src"
   ],
   "dependencies": {
-    "@theia/core": "1.65.2",
+    "@theia/core": "1.76.0",
     "app-state": "0.0.1",
     "rockit-common": "1.0.0"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
-    "typescript": "~5.4.5"
+    "typescript": "~5.9.3"
   },
   "scripts": {
     "clean": "rimraf lib",

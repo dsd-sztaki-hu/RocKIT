@@ -44,7 +44,7 @@
     "README.md"
   ],
   "scripts": {
-    "test": "tsx cedar-converter.test.ts",
+    "test": "node --import tsx cedar-converter.test.ts",
     "test:compile": "tsc && node cedar-converter.test.js",
     "test:node": "ts-node --esm cedar-converter.test.ts",
     "build": "tsc"
@@ -53,6 +53,6 @@
     "@types/node": "^20.0.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "typescript": "~5.9.3"
   }
 }

@@ -18,7 +18,9 @@ import { nls } from '@theia/core/lib/common/nls';
 
 import { DataRepositoryConfig } from '../types';
 import { DataRepositorySuccessDialog } from './data-repository-success-dialog';
-import { DataverseService } from '../services/dataverse-service';
+import { RepositoryProviderRegistration } from '../repository-provider-registry';
+import { RepositoryProviderService } from '../repository-provider-service';
+import type { CrosswalkRegistryEntry } from 'crosswalk-manager/lib/browser/crosswalk-manager-types';
 import '../styles/data-repository-config-dialog.css';
 
 export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryConfig | undefined> {
@@ -29,6 +31,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     private titleValue: string = '';
     private baseUrlValue: string = '';
     private apiKeyValue: string = '';
+    private providerIdValue: string = '';
+    private crosswalkIdValue: string = '';
     
     private isEditingKey = true; 
     private showKey = false; 
@@ -37,8 +41,10 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     private result: DataRepositoryConfig | undefined;
 
     constructor(
-        private readonly dataverseService: DataverseService,
-        private readonly repoToEdit?: DataRepositoryConfig
+        private readonly repoToEdit?: DataRepositoryConfig,
+        private readonly providers: RepositoryProviderRegistration[] = [],
+        private readonly providerService?: RepositoryProviderService,
+        private readonly crosswalks: CrosswalkRegistryEntry[] = []
     ) {
         super({
             title: repoToEdit
@@ -59,8 +65,11 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             this.titleValue = repoToEdit.title;
             this.baseUrlValue = repoToEdit.baseUrl;
             this.apiKeyValue = repoToEdit.apiKey || '';
+            this.providerIdValue = repoToEdit.providerId || '';
+            this.crosswalkIdValue = repoToEdit.crosswalkId || '';
             this.isEditingKey = false; 
         }
+        this.selectSingleCompatibleCrosswalk();
     }
 
     get value(): DataRepositoryConfig | undefined {
@@ -80,7 +89,12 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             this.errorMsg = nls.localize('rockit/dataRepository/baseUrlRequired', 'Base URL is required.');
             this.render(); return;
         }
-        if (!cleanApiKey) {
+        const selectedProvider = this.providers.find(provider => provider.id === this.providerIdValue);
+        if (!selectedProvider) {
+            this.errorMsg = nls.localize('rockit/dataRepository/providerRequired', 'Repository Type is required.');
+            this.render(); return;
+        }
+        if (!cleanApiKey && selectedProvider?.connection?.requiresApiKey) {
             this.errorMsg = nls.localize('rockit/dataRepository/tokenRequired', 'API Token is required.');
             this.render(); return;
         }
@@ -101,21 +115,33 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         this.render();
 
         let expirationDate: string | undefined = undefined;
+        const repository: DataRepositoryConfig = {
+            id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
+            title: cleanTitle,
+            baseUrl: cleanBaseUrl,
+            apiKey: cleanApiKey,
+            providerId: this.providerIdValue,
+            ...(this.crosswalkIdValue ? { crosswalkId: this.crosswalkIdValue } : {})
+        };
 
         try {
-            const result = await this.dataverseService.validateToken(cleanBaseUrl, cleanApiKey);
+            if (!this.providerService) {
+                throw new Error('The repository provider service is unavailable.');
+            }
+            const result = await this.providerService.executeForRepository<
+                { repository: DataRepositoryConfig },
+                { valid?: boolean; expirationDate?: string }
+            >(repository, 'validate', { repository });
+            if (!result?.valid) {
+                throw new Error('The repository provider did not validate the connection.');
+            }
             expirationDate = result.expirationDate;
 
             const successDialog = new DataRepositorySuccessDialog(cleanTitle, expirationDate);
             const confirmed = await successDialog.open();
 
             if (confirmed) {
-                this.result = {
-                    id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
-                    title: cleanTitle,
-                    baseUrl: cleanBaseUrl,
-                    apiKey: cleanApiKey
-                };
+                this.result = repository;
                 this.accept(); 
             } else {
                 this.isTesting = false;
@@ -139,10 +165,68 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         this.close();
     }
 
+    private compatibleCrosswalks(): CrosswalkRegistryEntry[] {
+        if (!this.providerIdValue) return this.crosswalks;
+        const providerId = this.providerIdValue.toLocaleLowerCase();
+        const compatible = this.crosswalks.filter(crosswalk =>
+            crosswalk.repositories?.some(repository =>
+                repository.toLocaleLowerCase() === providerId
+            )
+        );
+        return compatible.length ? compatible : this.crosswalks;
+    }
+
+    private selectSingleCompatibleCrosswalk(): void {
+        if (this.crosswalkIdValue) return;
+        const compatible = this.compatibleCrosswalks();
+        if (this.providerIdValue && compatible.length === 1) {
+            this.crosswalkIdValue = compatible[0].id;
+        }
+    }
+
+    private changeProvider(providerId: string): void {
+        this.providerIdValue = providerId;
+        if (!this.compatibleCrosswalks().some(crosswalk => crosswalk.id === this.crosswalkIdValue)) {
+            this.crosswalkIdValue = '';
+        }
+        this.selectSingleCompatibleCrosswalk();
+        this.render();
+    }
+
     protected render(): void {
         if (!this.reactRoot) {
             this.reactRoot = createRoot(this.contentNode);
         }
+        const selectedProviderAvailable = this.providers.some(
+            provider => provider.id === this.providerIdValue
+        );
+        const providerAvailabilityMessage = this.providers.length === 0
+            ? nls.localize(
+                'rockit/dataRepository/noProvidersInstalledMessage',
+                'No repository provider extensions are installed. Install one from the Extensions view before saving this connection.'
+            )
+            : this.providerIdValue && !selectedProviderAvailable
+                ? nls.localize(
+                    'rockit/dataRepository/configuredProviderUnavailable',
+                    'The configured repository type is unavailable. Install its provider extension or select another repository type.'
+                )
+                : undefined;
+        const saveDisabledReason = this.isTesting
+            ? nls.localize(
+                'rockit/dataRepository/connectionBeingVerified',
+                'The repository connection is being verified.'
+            )
+            : this.providers.length === 0
+                ? nls.localize(
+                    'rockit/dataRepository/installProviderBeforeSaving',
+                    'Install a repository provider extension before saving this connection.'
+                )
+                : !selectedProviderAvailable
+                    ? nls.localize(
+                        'rockit/dataRepository/selectProviderBeforeSaving',
+                        'Select a repository type before saving this connection.'
+                    )
+                    : undefined;
 
         this.reactRoot.render(
             <div className="data-repo-config">
@@ -171,6 +255,16 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                         </div>
                     )}
 
+                    {providerAvailabilityMessage && (
+                        <div className="data-repo-config__error" role="alert">
+                            <ErrorOutlineIcon fontSize="small" />
+                            <span>
+                                <strong>{nls.localize('rockit/dataRepository/actionRequired', 'Action required')}:</strong>{' '}
+                                {providerAvailabilityMessage}
+                            </span>
+                        </div>
+                    )}
+
                     <div className="data-repo-config__form">
                         
                         <div>
@@ -184,6 +278,77 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                 autoFocus
                             />
                         </div>
+
+                        <div>
+                            <label className="data-repo-config__label">
+                                {nls.localize('rockit/dataRepository/providerType', 'Repository Type')}
+                            </label>
+                            <select
+                                className="theia-select data-repo-config__input"
+                                value={selectedProviderAvailable ? this.providerIdValue : ''}
+                                disabled={this.isTesting || this.providers.length === 0}
+                                onChange={(event) => this.changeProvider(event.target.value)}
+                            >
+                                <option value="" disabled>
+                                    {this.providers.length === 0
+                                        ? nls.localize(
+                                            'rockit/dataRepository/noProvidersInstalled',
+                                            'No repository types installed'
+                                        )
+                                        : nls.localize(
+                                            'rockit/dataRepository/selectProvider',
+                                            'Select a repository type'
+                                        )}
+                                </option>
+                                {this.providers.map(provider => (
+                                    <option key={provider.id} value={provider.id}>
+                                        {provider.displayName}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {this.crosswalks.length > 0 && (
+                            <div>
+                                <label className="data-repo-config__label">
+                                    {nls.localize('rockit/dataRepository/crosswalk', 'Metadata Crosswalk')}
+                                </label>
+                                <select
+                                    className="theia-select data-repo-config__input"
+                                    value={this.crosswalkIdValue}
+                                    disabled={this.isTesting}
+                                    onChange={(event) => {
+                                        this.crosswalkIdValue = event.target.value;
+                                        this.render();
+                                    }}
+                                >
+                                    <option value="">
+                                        {nls.localize('rockit/dataRepository/noCrosswalk', 'No crosswalk')}
+                                    </option>
+                                    {this.compatibleCrosswalks().map(crosswalk => (
+                                        <option key={crosswalk.id} value={crosswalk.id}>
+                                            {crosswalk.name}
+                                        </option>
+                                    ))}
+                                    {this.crosswalkIdValue &&
+                                        !this.crosswalks.some(crosswalk => crosswalk.id === this.crosswalkIdValue) && (
+                                            <option value={this.crosswalkIdValue} disabled>
+                                                {nls.localize(
+                                                    'rockit/dataRepository/missingCrosswalk',
+                                                    'Missing crosswalk: {0}',
+                                                    this.crosswalkIdValue,
+                                                )}
+                                            </option>
+                                        )}
+                                </select>
+                                <div className="data-repo-config__field-hint">
+                                    {nls.localize(
+                                        'rockit/dataRepository/crosswalkHint',
+                                        'RocKIT uses this crosswalk for repository metadata import, export, update, and synchronization.',
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         <div>
                             <label className="data-repo-config__label">
@@ -256,16 +421,23 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                     >
                         {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>
-                    <button 
-                        className="theia-button main data-repo-config__btn-save"
-                        onClick={() => this.handleSaveAttempt()}
-                        disabled={this.isTesting}
+                    <span
+                        className={`data-repo-config__save-tooltip${
+                            saveDisabledReason ? ' data-repo-config__save-tooltip--disabled' : ''
+                        }`}
+                        title={saveDisabledReason}
                     >
-                        {this.isTesting && <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} />}
-                        {this.isTesting
-                            ? nls.localize('rockit/dataRepository/verifying', 'Verifying...')
-                            : nls.localize('rockit/dataRepository/save', 'Save')}
-                    </button>
+                        <button
+                            className="theia-button main data-repo-config__btn-save"
+                            onClick={() => this.handleSaveAttempt()}
+                            disabled={!!saveDisabledReason}
+                        >
+                            {this.isTesting && <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} />}
+                            {this.isTesting
+                                ? nls.localize('rockit/dataRepository/verifying', 'Verifying...')
+                                : nls.localize('rockit/dataRepository/save', 'Save')}
+                        </button>
+                    </span>
                 </div>
             </div>
         );

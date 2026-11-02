@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  FORCE_COLOR: 1
+
+jobs:
+  build-test-coverage:
+    name: Build, unit tests, and coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository and ReCrate
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --non-interactive
+
+      - name: Build TypeScript extensions
+        run: yarn build:extensions
+
+      - name: Build browser application
+        run: yarn download:plugins && yarn workspace browser-app bundle
+
+      - name: Run unit and component tests
+        run: yarn test
+
+      - name: Collect ReCrate coverage
+        run: yarn test:coverage
+
+      - name: Upload coverage report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: recrate-coverage
+          path: dev-packages/recrate/coverage
+          if-no-files-found: ignore
+          retention-days: 14
+
+  integration:
+    name: MCP integration and crosswalk status
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository and ReCrate
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --non-interactive
+
+      - name: Run RocKIT integration tests
+        run: yarn test:integration
+
+      - name: Run MCP integration and package tests
+        run: yarn test:integration:mcp
+
+      - name: Set up Python for crosswalk validation
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install crosswalk validation dependencies
+        run: python -m pip install -r theia-extensions/data-repository-manager/src/browser/metadata-crosswalks/requirements.txt
+
+      - name: Check metadata crosswalks
+        run: yarn test:crosswalk
+
+  electron-e2e:
+    name: Electron end-to-end tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository and ReCrate
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --non-interactive
+
+      - name: Build Electron application
+        run: yarn build:electron
+
+      - name: Run Electron end-to-end tests
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" yarn test:e2e
+
+      - name: Upload Electron end-to-end failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: electron-e2e-failure-artifacts
+          path: |
+            playwright-report/electron
+            test-results/e2e/electron
+          if-no-files-found: ignore
+          retention-days: 14

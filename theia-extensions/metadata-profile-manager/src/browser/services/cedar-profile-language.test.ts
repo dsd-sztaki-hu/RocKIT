@@ -17,6 +17,13 @@ describe('toCedarProfileLanguage', () => {
     },
   );
 
+  it.each([' hu-HU ', 'hu-Latn-HU'])(
+    'normalizes whitespace and extended Hungarian locale %s',
+    (locale) => {
+      expect(toCedarProfileLanguage(locale)).toBe('hu');
+    },
+  );
+
   it.each([undefined, '', 'en', 'en-US', 'de'])(
     'maps %s to the English fallback',
     (locale) => {
@@ -38,6 +45,20 @@ describe('toLocalizedConvertedProfilePath', () => {
 
   it('supports a file name without a directory', () => {
     expect(toLocalizedConvertedProfilePath('profile.json', 'hu'))
+      .toBe('hu/profile.json');
+  });
+
+  it('is stable when the same language path is localized repeatedly', () => {
+    const localized = toLocalizedConvertedProfilePath(
+      'metadata-profiles/ro-crate/profile.json',
+      'hu',
+    );
+
+    expect(toLocalizedConvertedProfilePath(localized, 'hu')).toBe(localized);
+  });
+
+  it('keeps an already localized root-level path stable', () => {
+    expect(toLocalizedConvertedProfilePath('hu/profile.json', 'hu'))
       .toBe('hu/profile.json');
   });
 });

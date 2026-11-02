@@ -5,6 +5,7 @@
 // ******************************************************************************************
 
 import { ContainerModule } from 'inversify';
+import './antd-react19-renderer';
 import { CommandContribution } from '@theia/core/lib/common/command';
 import { WebSocketConnectionProvider } from '@theia/core/lib/browser';
 import {

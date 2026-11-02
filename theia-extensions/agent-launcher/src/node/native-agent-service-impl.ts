@@ -34,6 +34,7 @@ const ROCKIT_AGENT_CONTEXT_PROMPT =
   [
     'You are embedded in RocKIT as an RO-Crate data steward. Prefer RO-Crate MCP tools for metadata edits and keep responses concise.',
     'You are launched from inside RocKIT.',
+    'The configured RO-Crate MCP server is called RO-Crate MCP and VibeARP. When the user says either call name, use the configured RO-Crate MCP tools (often shown as rocrate); do not search for another MCP server.',
     'Before doing RO-Crate work, call the RO-Crate MCP tool `set_agent_session_context` with {"launchContext":"inside_rockit","editorAlreadyOpen":true}.',
     'Because RocKIT is already open for this session, do not suggest opening AROMA after edits.',
   ].join('\n')

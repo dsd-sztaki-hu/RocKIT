@@ -206,6 +206,9 @@ export function shouldIncludeDefaultRoCratePath(
   if (!normalized) {
     return false
   }
+  if (normalized.split('/').some((segment) => segment.toLowerCase() === '.ds_store')) {
+    return false
+  }
   if (isRootEntry) {
     const rootName = normalized.split('/')[0]
     if (rootName.startsWith('.')) {

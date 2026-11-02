@@ -76,8 +76,9 @@ class_derivations:
         populated_from: productionPlace
         description: "needsReview: zenodo.imprint_place"
       imprint_publisher:
-        populated_from: producer
-        description: "needsReview: zenodo.imprint_publisher"
+        expr: None
+        description: "repositorySpecific: No verified canonical source identifies the
+          publication imprint publisher; a dataset producer is not assumed to be its publisher."
       journal_issue:
         populated_from: journalIssue
         description: "mapped: zenodo.journal_issue"

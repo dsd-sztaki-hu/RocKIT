@@ -103,6 +103,13 @@
     border-color: var(--theia-focusBorder);
 }
 
+.data-repo-config__field-hint {
+    color: var(--theia-descriptionForeground);
+    font-size: var(--theia-ui-font-size0);
+    line-height: 1.35;
+    margin-top: 4px;
+}
+
 .data-repo-config__api-key-wrapper {
     display: flex;
     gap: 8px;
@@ -165,4 +172,16 @@
     min-width: 100px;
     color: var(--theia-button-foreground);
     text-align: center;
+}
+
+.data-repo-config__save-tooltip {
+    display: inline-flex;
+}
+
+.data-repo-config__save-tooltip--disabled {
+    cursor: help;
+}
+
+.data-repo-config__save-tooltip--disabled .data-repo-config__btn-save {
+    pointer-events: none;
 }
