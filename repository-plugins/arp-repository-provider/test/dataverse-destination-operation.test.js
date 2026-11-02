@@ -6,105 +6,116 @@
 
 const assert = require('node:assert/strict')
 const { DataverseDestinationOperation } = require('../src/dataverse-destination-operation')
+const ok = data => ({ ok: true, status: 200, payload: { status: 'OK', data } })
+
+function setup() {
+  const client = {
+    searchCollections: jest.fn(async ({ query, perPage }) => perPage === 1
+      ? ok({ total_count: query === 'dvParentAlias:"sztaki"' ? 1 : 0, items: [] })
+      : ok({
+      total_count: 1,
+      items: query === 'dvParentAlias:"root"'
+        ? [{ type: 'dataverse', identifier: 'sztaki', name: 'SZTAKI' }]
+        : query === 'dvParentAlias:"sztaki"'
+          ? [{ type: 'dataverse', identifier: 'aroma', name: 'AROMA 2.0 test' }]
+          : [{ type: 'dataverse', identifier: 'sztaki', name: 'SZTAKI' }],
+    })),
+    getCollection: jest.fn(async id => ok({ alias: id, childCount: id === 'aroma' ? 0 : 2 })),
+    getCollectionContents: jest.fn(() => { throw new Error('Must not prefetch contents') }),
+    getCollectionUserPermissions: jest.fn(async () => ok({ permissions: ['AddDataset'] })),
+  }
+  return { client, operation: new DataverseDestinationOperation({ clientFactory: () => client }) }
+}
 
 describe('Dataverse destination operation', () => {
-  it('lists children, searches destinations, and checks create permission', async () => {
-    const calls = []
-    const repository = { baseUrl: 'https://example.org', apiKey: 'secret' }
-    const client = {
-      getCollectionContents: async id => {
-        calls.push(`contents:${id}`)
-        return {
-          ok: true,
-          status: 200,
-          payload: {
-            status: 'OK',
-            data: [{ type: 'dataverse', alias: 'science', name: 'Science' }],
-          },
-        }
-      },
-      getCollection: async id => {
-        calls.push(`details:${id}`)
-        return {
-          ok: true,
-          status: 200,
-          payload: { status: 'OK', data: { alias: id, name: 'Science', childCount: 2 } },
-        }
-      },
-      searchCollections: async input => {
-        calls.push(`search:${input.query}:${input.subtree || ''}`)
-        return {
-          ok: true,
-          status: 200,
-          payload: {
-            status: 'OK',
-            data: {
-              total_count: 1,
-              items: input.subtree
-                ? [{ type: 'dataverse', identifier: 'child', name: 'Child' }]
-                : [{ type: 'dataverse', identifier: 'biology', name: 'Biology' }],
-            },
-          },
-        }
-      },
-      getCollectionUserPermissions: async id => {
-        calls.push(`permissions:${id}`)
-        return {
-          ok: true,
-          status: 200,
-          payload: { status: 'OK', data: { permissions: ['AddDataset'] } },
-        }
-      },
-    }
-    const operation = new DataverseDestinationOperation({
-      clientFactory: received => {
-        assert.equal(received, repository)
-        return client
-      },
+  it('loads one hierarchy level at a time and never prefetches descendant records', async () => {
+    const { operation, client } = setup()
+    assert.deepEqual(await operation.list({ repository: {} }), {
+      destinations: [{ id: 'sztaki', label: 'SZTAKI', parentId: 'root', hasChildren: true }],
     })
-
-    assert.deepEqual(await operation.list({ repository }), {
-      destinations: [{
-        id: 'science',
-        label: 'Science',
-        parentId: 'root',
-        hasChildren: true,
-      }],
-    })
-    assert.deepEqual(await operation.search({ repository, query: 'bio' }), {
-      destinations: [{
-        id: 'biology',
-        label: 'Biology',
-        hasChildren: false,
-      }],
-    })
-    assert.deepEqual(await operation.check({
-      repository,
-      destinationId: 'science',
-    }), { selectable: true })
-    assert.deepEqual(calls, [
-      'contents:root',
-      'details:science',
-      'search:*:science',
-      'search:bio*:',
-      'permissions:science',
+    expect(client.searchCollections.mock.calls).toEqual([
+      [{ query: 'dvParentAlias:"root"', perPage: 1000, start: 0 }],
+      [{ query: 'dvParentAlias:"sztaki"', perPage: 1, start: 0, queryEntities: false }],
     ])
+    expect(client.getCollection).not.toHaveBeenCalled()
+    assert.deepEqual(await operation.list({ repository: {}, parentId: 'sztaki' }), {
+      destinations: [{ id: 'aroma', label: 'AROMA 2.0 test', parentId: 'sztaki', hasChildren: false }],
+    })
+    expect(client.searchCollections).toHaveBeenCalledWith({
+      query: 'dvParentAlias:"sztaki"', perPage: 1000, start: 0,
+    })
+    expect(client.searchCollections).toHaveBeenLastCalledWith({
+      query: 'dvParentAlias:"aroma"', perPage: 1, start: 0, queryEntities: false,
+    })
+    expect(client.getCollectionContents).not.toHaveBeenCalled()
   })
 
-  it('does not allow a destination without AddDataset permission', async () => {
-    const operation = new DataverseDestinationOperation({
-      clientFactory: () => ({
-        getCollectionUserPermissions: async () => ({
-          ok: true,
-          status: 200,
-          payload: { status: 'OK', data: ['ViewUnpublishedDataset'] },
-        }),
-      }),
+  it('restricts filtering to collection names and keeps matched parents expandable', async () => {
+    const { operation, client } = setup()
+    const result = await operation.search({ repository: {}, query: ' SZTAKI inst ' })
+    expect(client.searchCollections).toHaveBeenCalledWith({
+      query: 'dvName:(SZTAKI* AND inst*)', perPage: 1000, start: 0,
     })
-    assert.deepEqual(await operation.check({
-      repository: {},
-      destinationId: 'readonly',
-    }), { selectable: false })
+    expect(result.destinations[0].hasChildren).toBe(true)
+    expect(client.getCollectionContents).not.toHaveBeenCalled()
+    expect(operation.partialQuery('name:foo (bar)')).toBe('dvName:(name\\:foo* AND \\(bar\\)*)')
+  })
+
+  it('does not show arrows for dataset-only collections even if childCount is positive', async () => {
+    const { operation, client } = setup()
+    client.getCollection.mockResolvedValue(ok({ alias: 'aroma', childCount: 8 }))
+    const result = await operation.list({ repository: {}, parentId: 'sztaki' })
+    expect(result.destinations[0].hasChildren).toBe(false)
+    expect(client.getCollection).not.toHaveBeenCalled()
+    expect(client.getCollectionContents).not.toHaveBeenCalled()
+  })
+
+  it('checks filtered results for Dataverse children using the same direct-parent query', async () => {
+    const { operation, client } = setup()
+    client.searchCollections.mockImplementation(async ({ perPage }) => perPage === 1
+      ? ok({ total_count: 0, items: [] })
+      : ok({ items: [{ type: 'dataverse', identifier: 'aroma', name: 'AROMA 2.0 test' }] }))
+    const result = await operation.search({ repository: {}, query: 'aroma' })
+    expect(result.destinations[0].hasChildren).toBe(false)
+    expect(client.searchCollections).toHaveBeenLastCalledWith({
+      query: 'dvParentAlias:"aroma"', perPage: 1, start: 0, queryEntities: false,
+    })
+  })
+
+  it('reports a failed child check instead of guessing that a collection is expandable', async () => {
+    const { operation, client } = setup()
+    client.searchCollections.mockImplementation(async ({ perPage }) => perPage === 1
+      ? { ok: false, status: 503, payload: { status: 'ERROR' } }
+      : ok({ items: [{ type: 'dataverse', identifier: 'sztaki', name: 'SZTAKI' }] }))
+    await expect(operation.list({ repository: {} })).rejects.toThrow('check child collections')
+  })
+
+  it('caps results at 1,000 and does not automatically page through the repository', async () => {
+    const { operation, client } = setup()
+    client.searchCollections.mockResolvedValue(ok({ total_count: 5000, items:
+      Array.from({ length: 1001 }, (_, id) => ({ type: 'dataverse', identifier: String(id) })),
+    }))
+    const result = await operation.list({ repository: {} })
+    expect(result.destinations).toHaveLength(1000)
+    expect(client.searchCollections.mock.calls.filter(([input]) => input.perPage === 1000)).toHaveLength(1)
+    expect(client.searchCollections.mock.calls.filter(([input]) => input.perPage === 1)).toHaveLength(1000)
+  })
+
+  it('keeps an empty root selectable without flattening the entire repository', async () => {
+    const { operation, client } = setup()
+    client.searchCollections.mockResolvedValue(ok({ total_count: 0, items: [] }))
+    client.getCollection.mockResolvedValue(ok({ alias: 'root', name: 'ARP' }))
+    expect(await operation.list({ repository: {} })).toEqual({
+      destinations: [{ id: 'root', label: 'ARP', hasChildren: false }],
+    })
+    expect(await operation.list({ repository: {}, parentId: 'leaf' })).toEqual({ destinations: [] })
+    expect(await operation.search({ repository: {}, query: ' ' })).toEqual({ destinations: [] })
+  })
+
+  it('checks permission independently of browsing and searching', async () => {
+    const { operation, client } = setup()
+    expect(await operation.check({ repository: {}, destinationId: 'sztaki' })).toEqual({ selectable: true })
+    client.getCollectionUserPermissions.mockResolvedValue(ok(['ViewUnpublishedDataset']))
+    expect(await operation.check({ repository: {}, destinationId: 'sztaki' })).toEqual({ selectable: false })
   })
 })
-

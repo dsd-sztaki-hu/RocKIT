@@ -5,7 +5,7 @@
 // ******************************************************************************************
 
 import * as React from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -49,6 +49,8 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
     const canSearch = props.providerService.supports(props.repository, 'searchDestinations');
     const [treeData, setTreeData] = useState<TreeNode[]>([]);
     const [expandedNodes, setExpandedNodes] = useState<string[]>([]);
+    const [expandedSearchNodes, setExpandedSearchNodes] = useState<string[]>([]);
+    const [selectedNodeId, setSelectedNodeId] = useState<string>('');
 
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [loadingNodeIds, setLoadingNodeIds] = useState<Set<string>>(new Set());
@@ -62,8 +64,8 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
     const [isSearchLoading, setIsSearchLoading] = useState(false);
     const [searchErrorMsg, setSearchErrorMsg] = useState<string | null>(null);
 
-    const toTreeNode = (destination: RepositoryDestination): TreeNode => ({
-        id: destination.id,
+    const toTreeNode = (destination: RepositoryDestination, parentPath = ''): TreeNode => ({
+        id: `${parentPath}${encodeURIComponent(destination.id)}`,
         name: destination.label,
         alias: destination.id,
         parentAlias: destination.parentId,
@@ -101,7 +103,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         >(props.repository, 'listDestinations', { repository: props.repository })
             .then(res => {
                 if (ignore) return;
-                const newData = (res?.destinations ?? []).map(toTreeNode);
+                const newData = (res?.destinations ?? []).map(destination => toTreeNode(destination));
                 setTreeData(newData);
                 setIsLoading(false);
             })
@@ -134,16 +136,21 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                 RepositoryDestinationListResult
             >(props.repository, 'listDestinations', {
                 repository: props.repository,
-                parentId: node.id,
+                parentId: node.alias,
             });
             const children = result?.destinations ?? [];
-            setTreeData(prev => replaceNode(prev, node.id, current => ({
+            const updateNodes = (prev: TreeNode[]) => replaceNode(prev, node.id, current => ({
                 ...current,
-                children: children.map(toTreeNode),
+                children: children.map(destination => toTreeNode(destination, `${node.id}/`)),
                 childrenLoaded: true,
                 hasChildren: children.length > 0,
                 isFolder: children.length > 0
-            })));
+            }));
+            if (searchQuery) {
+                setSearchResults(updateNodes);
+            } else {
+                setTreeData(updateNodes);
+            }
         } catch (err: any) {
             console.error("DataverseTree child load error:", err);
             setErrorMsg(nls.localize('rockit/dataRepository/loadChildCollectionsFailed', 'Failed to load child collections for {0}: {1}', node.name, err.message || nls.localize('rockit/validation/unknownError', 'Unknown error')));
@@ -157,13 +164,15 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
     };
 
     const handleToggle = useCallback((_event: React.SyntheticEvent, nodeIds: string[]) => {
-        const newlyExpanded = nodeIds.filter(id => !expandedNodes.includes(id));
-        setExpandedNodes(nodeIds);
+        const expanded = searchQuery ? expandedSearchNodes : expandedNodes;
+        const newlyExpanded = nodeIds.filter(id => !expanded.includes(id));
+        if (searchQuery) setExpandedSearchNodes(nodeIds);
+        else setExpandedNodes(nodeIds);
         for (const nodeId of newlyExpanded) {
-            const node = findNode(treeData, nodeId);
+            const node = findNode(searchQuery ? searchResults : treeData, nodeId);
             if (node) void loadChildren(node);
         }
-    }, [expandedNodes, treeData, loadingNodeIds]);
+    }, [expandedNodes, expandedSearchNodes, treeData, searchResults, searchQuery, loadingNodeIds]);
 
     const onNodeClick = useCallback(async (node: TreeNode, e: React.MouseEvent) => {
         e.preventDefault();
@@ -175,12 +184,13 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                 RepositoryDestinationCheckResult
             >(props.repository, 'checkDestination', {
                 repository: props.repository,
-                destinationId: node.id,
+                destinationId: node.alias,
             })
             : { selectable: true };
         
+        setSelectedNodeId(node.id);
         props.onCollectionSelected({
-            id: node.id,
+            id: node.alias,
             name: node.name,
             alias: node.alias,
             isWritable: result?.selectable === true
@@ -205,6 +215,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         }
 
         setIsSearchLoading(true);
+        setExpandedSearchNodes([]);
         setSearchErrorMsg(null);
         props.providerService.executeForRepository<
             { repository: DataRepositoryConfig; query: string },
@@ -215,12 +226,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         })
             .then(results => {
                 if (ignore) return;
-                setSearchResults((results?.destinations ?? []).map(destination => ({
-                    ...toTreeNode(destination),
-                    hasChildren: false,
-                    isFolder: false,
-                    childrenLoaded: true
-                })));
+                setSearchResults((results?.destinations ?? []).map(destination => toTreeNode(destination)));
             })
             .catch(err => {
                 if (ignore) return;
@@ -239,11 +245,36 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
 
     const visibleNodes = searchQuery ? searchResults : treeData;
 
-    const renderTree = useCallback((nodes: TreeNode[]): React.ReactNode =>
+    const renderTree = (nodes: TreeNode[]): React.ReactNode =>
         nodes.map((node) => (
             <TreeItem
                 key={node.id}
                 itemId={node.id}
+                onClickCapture={event => {
+                    // Handle the arrow against our lazy node state. MUI's item
+                    // registry can lag behind newly inserted placeholder children.
+                    const target = event.target as Element;
+                    if (target.closest('[role="treeitem"]') !== event.currentTarget
+                        || !target.closest('.MuiTreeItem-iconContainer') || !node.hasChildren) return;
+                    event.stopPropagation();
+                    const expanded = searchQuery ? expandedSearchNodes : expandedNodes;
+                    handleToggle(event, expanded.includes(node.id)
+                        ? expanded.filter(id => id !== node.id)
+                        : [...expanded, node.id]);
+                }}
+                onKeyDownCapture={event => {
+                    if (event.target !== event.currentTarget || !node.hasChildren) return;
+                    const expanded = searchQuery ? expandedSearchNodes : expandedNodes;
+                    const isExpanded = expanded.includes(node.id);
+                    if ((event.key === 'ArrowRight' && !isExpanded)
+                        || (event.key === 'ArrowLeft' && isExpanded)) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleToggle(event, isExpanded
+                            ? expanded.filter(id => id !== node.id)
+                            : [...expanded, node.id]);
+                    }
+                }}
                 label={
                     <div 
                         className="dataverse-tree__node"
@@ -306,9 +337,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                         )
                     : undefined}
             </TreeItem>
-        )), [loadingNodeIds, onNodeClick, props.selectedCollectionId]);
-
-    const renderedTree = useMemo(() => renderTree(visibleNodes), [visibleNodes, renderTree]);
+        ));
 
     return (
         <div className="dataverse-tree">
@@ -318,7 +347,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                         <TextField
                             className="dataverse-tree__search-box"
                             variant="standard"
-                            placeholder={nls.localize('rockit/dataRepository/searchCollections', 'Search collections...')}
+                            placeholder={nls.localize('rockit/dataRepository/searchCollectionsByName', 'Search collection names...')}
                             value={rawSearchInput}
                             onChange={(e) => setRawSearchInput(e.target.value)}
                             autoFocus
@@ -365,24 +394,28 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                 {searchQuery && !isSearchLoading && !searchErrorMsg && searchResults.length === 0 && (
                     <div className="dataverse-tree__empty">{nls.localize('rockit/dataRepository/noMatchingCollections', 'No matching collections found.')}</div>
                 )}
-                {visibleNodes.length > 0 && (
-                    <SimpleTreeView
-                        slots={{ collapseIcon: ExpandMoreIcon, expandIcon: ChevronRightIcon }}
-                        expandedItems={searchQuery ? [] : expandedNodes}
-                        onExpandedItemsChange={searchQuery ? undefined : handleToggle}
-                        selectedItems={props.selectedCollectionId ?? ''}
-                        sx={{
-                            flexGrow: 1,
-                            overflowY: 'auto',
-                            outline: 'none !important',
-                            border: 'none !important',
-                            '&:focus': { outline: 'none !important' },
-                            '&:focus-visible': { outline: 'none !important' }
-                        }}
-                    >
-                        {renderedTree}
-                    </SimpleTreeView>
+                {visibleNodes.length >= 1000 && (
+                    <div className="dataverse-tree__empty">
+                        {nls.localize('rockit/dataRepository/collectionLimit', 'Showing up to 1,000 collections. Search by name to narrow the results.')}
+                    </div>
                 )}
+                <SimpleTreeView
+                    slots={{ collapseIcon: ExpandMoreIcon, expandIcon: ChevronRightIcon }}
+                    expansionTrigger="iconContainer"
+                    expandedItems={searchQuery ? expandedSearchNodes : expandedNodes}
+                    onExpandedItemsChange={handleToggle}
+                    selectedItems={selectedNodeId || encodeURIComponent(props.selectedCollectionId ?? '')}
+                    sx={{
+                        flexGrow: 1,
+                        overflowY: 'auto',
+                        outline: 'none !important',
+                        border: 'none !important',
+                        '&:focus': { outline: 'none !important' },
+                        '&:focus-visible': { outline: 'none !important' }
+                    }}
+                >
+                    {renderTree(visibleNodes)}
+                </SimpleTreeView>
             </div>
         </div>
     );

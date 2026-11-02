@@ -266,13 +266,13 @@ describe('DataverseClient connection transport', () => {
 
     await client.getCollection('research/data')
     await client.getCollectionContents('research/data')
-    await client.searchCollections({ query: 'science*', subtree: 'root', perPage: 25, start: 50 })
+    await client.searchCollections({ query: 'science*', subtree: 'root', perPage: 25, start: 50, queryEntities: false })
     await client.getCollectionUserPermissions('research/data')
 
     assert.deepEqual(calls.map(call => call.url), [
-      'https://demo.dataverse.org/api/v1/dataverses/research%2Fdata',
+      'https://demo.dataverse.org/api/v1/dataverses/research%2Fdata?returnChildCount=true',
       'https://demo.dataverse.org/api/v1/dataverses/research%2Fdata/contents',
-      'https://demo.dataverse.org/api/v1/search?q=science*&type=dataverse&sort=name&order=asc&per_page=25&start=50&subtree=root',
+      'https://demo.dataverse.org/api/v1/search?q=science*&type=dataverse&sort=name&order=asc&per_page=25&start=50&subtree=root&query_entities=false',
       'https://demo.dataverse.org/api/v1/dataverses/research%2Fdata/userPermissions',
     ])
     assert.ok(calls.every(call => call.init.headers['x-dataverse-key'] === 'secret'))

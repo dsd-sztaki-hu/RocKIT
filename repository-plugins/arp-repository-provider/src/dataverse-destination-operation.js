@@ -12,16 +12,17 @@ class DataverseDestinationOperation {
   async list(input) {
     const client = this.client(input)
     const parentId = this.text(input?.parentId) || 'root'
-    let destinations = await this.immediateChildren(client, parentId)
+    // Match the immediate parent, rather than the whole subtree. The Search
+    // API bounds the response to 1,000 collections without loading descendants.
+    let destinations = await this.searchPages(
+      client, `dvParentAlias:"${this.escapeQuery(parentId)}"`, parentId,
+    )
     destinations = await this.addChildIndicators(client, destinations)
 
     if (parentId === 'root' && destinations.length === 0) {
-      destinations = await this.searchPages(client, '*')
-      if (destinations.length === 0) {
-        const root = await client.getCollection('root')
-        this.requireSuccess(root, 'load the root collection')
-        destinations = [this.destination(root.payload?.data, undefined, false)]
-      }
+      const root = await client.getCollection('root')
+      this.requireSuccess(root, 'load the root collection')
+      destinations = [this.destination(root.payload?.data, undefined, false)]
     }
 
     return { destinations }
@@ -31,7 +32,8 @@ class DataverseDestinationOperation {
     const client = this.client(input)
     const query = this.text(input?.query)
     if (!query) return { destinations: [] }
-    return { destinations: await this.searchPages(client, this.partialQuery(query)) }
+    const destinations = await this.searchPages(client, this.partialQuery(query))
+    return { destinations: await this.addChildIndicators(client, destinations) }
   }
 
   async check(input) {
@@ -51,15 +53,6 @@ class DataverseDestinationOperation {
     return this.clientFactory(repository)
   }
 
-  async immediateChildren(client, parentId) {
-    const result = await client.getCollectionContents(parentId)
-    this.requireSuccess(result, `load destinations below '${parentId}'`)
-    const items = Array.isArray(result.payload?.data) ? result.payload.data : []
-    return items
-      .filter(item => String(item?.type || '').toLowerCase() === 'dataverse')
-      .map(item => this.destination(item, parentId, false))
-  }
-
   async addChildIndicators(client, destinations) {
     const results = [...destinations]
     let nextIndex = 0
@@ -68,19 +61,18 @@ class DataverseDestinationOperation {
       while (nextIndex < results.length) {
         const index = nextIndex++
         const current = results[index]
-        try {
-          const details = await client.getCollection(current.id)
-          this.requireSuccess(details, `load destination '${current.id}'`)
-          const childCount = Number(details.payload?.data?.childCount || 0)
-          results[index] = {
-            ...current,
-            label: this.text(details.payload?.data?.name) || current.label,
-            hasChildren: childCount > 0
-              ? await this.hasChildCollections(client, current.id)
-              : false,
-          }
-        } catch {
-          results[index] = current
+        // Probe the search index for an immediate Dataverse child only. The
+        // generic childCount also includes datasets and cannot drive the arrow.
+        const result = await client.searchCollections({
+          query: `dvParentAlias:"${this.escapeQuery(current.id)}"`,
+          perPage: 1,
+          start: 0,
+          queryEntities: false,
+        })
+        this.requireSuccess(result, `check child collections of '${current.id}'`)
+        results[index] = {
+          ...current,
+          hasChildren: Number(result.payload?.data?.total_count || 0) > 0,
         }
       }
     }
@@ -88,43 +80,22 @@ class DataverseDestinationOperation {
     return results
   }
 
-  async hasChildCollections(client, destinationId) {
-    const result = await client.searchCollections({
-      query: '*',
-      subtree: destinationId,
-      perPage: 1,
-      start: 0,
-    })
-    return this.success(result) &&
-      Number(result.payload?.data?.total_count || 0) > 0
-  }
-
-  async searchPages(client, query) {
-    const perPage = 100
-    const destinations = []
-    for (let page = 0; page < 20; page += 1) {
-      const result = await client.searchCollections({
-        query,
-        perPage,
-        start: page * perPage,
-      })
-      this.requireSuccess(result, 'search repository destinations')
-      const items = Array.isArray(result.payload?.data?.items)
-        ? result.payload.data.items
-        : []
-      destinations.push(...items
-        .filter(item => String(item?.type || '').toLowerCase() === 'dataverse')
-        .map(item => this.destination(item, undefined, false)))
-      const total = Number(result.payload?.data?.total_count || destinations.length)
-      if (items.length < perPage || destinations.length >= total) break
-    }
-
+  async searchPages(client, query, parentId) {
+    const result = await client.searchCollections({ query, perPage: 1000, start: 0 })
+    this.requireSuccess(result, 'search repository destinations')
+    const items = Array.isArray(result.payload?.data?.items)
+      ? result.payload.data.items
+      : []
     const seen = new Set()
-    return destinations.filter(destination => {
-      if (seen.has(destination.id)) return false
-      seen.add(destination.id)
-      return true
-    })
+    return items
+      .filter(item => String(item?.type || '').toLowerCase() === 'dataverse')
+      .slice(0, 1000)
+      .map(item => this.destination(item, parentId, true))
+      .filter(destination => {
+        if (seen.has(destination.id)) return false
+        seen.add(destination.id)
+        return true
+      })
   }
 
   destination(value, parentId, hasChildren) {
@@ -141,12 +112,16 @@ class DataverseDestinationOperation {
     }
   }
 
+  escapeQuery(value) {
+    // Treat the filter as text, including punctuation in collection names.
+    return value.replace(/[+\-&|!(){}\[\]^"~*?:\\/]/g, '\\$&')
+  }
+
   partialQuery(value) {
-    const parts = value.split(/\s+/).filter(Boolean)
-    if (parts.length === 0) return '*'
-    const last = parts[parts.length - 1]
-    parts[parts.length - 1] = /[*?]$/.test(last) ? last : `${last}*`
-    return parts.join(' ')
+    const parts = value.split(/\s+/).filter(Boolean).map(part => this.escapeQuery(part))
+    // Restrict every term to the collection's own name, rather than affiliation,
+    // description or parent metadata. Prefix matching supports typing ahead.
+    return `dvName:(${parts.map(part => `${part}*`).join(' AND ')})`
   }
 
   canAddDataset(data) {
