@@ -198,7 +198,7 @@ export class ApplicationViewMenuOverrides
 
     this.menuRegistry.registerMenuAction(CommonMenus.VIEW_VIEWS, {
       commandId: this.extensionsCommandId,
-      label: nls.localizeByDefault('Plugins'),
+      label: nls.localize('rockit/menu/plugins', 'Plugins'),
     })
   }
 

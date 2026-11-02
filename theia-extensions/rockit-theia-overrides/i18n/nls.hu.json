@@ -367,6 +367,7 @@
       "roCratePreview": "Előnézet",
       "remoteToLocalConversion": "Távoli azonosítók helyivé alakítása",
       "filePreview": "Fájlelőnézet",
+      "plugins": "Bővítmények",
       "toggleHelpIcons": "Súgóikonok megjelenítése/elrejtése"
     },
     "crosswalkManager": {
@@ -1392,6 +1393,9 @@
     "settingsEditor2": {
       "SearchSettings.AriaLabel": "Beállítások keresése"
     },
+    "preferencesEditorInput": {
+      "preferencesEditorInputName": "Beállítások"
+    },
     "keybindingsEditorModel": {
       "user": "Felhasználó"
     },
@@ -1425,6 +1429,7 @@
       "timeline": "Idővonal",
       "mergeEditor": "Egyesítésszerkesztő",
       "chat": "Csevegés",
+      "chatAppearance": "Megjelenés",
       "experimental": "Kísérleti",
       "other": "Egyéb"
     },
@@ -1465,7 +1470,8 @@
     },
     "terminalMenus": {
       "workbench.action.tasks.runTask": "Feladat futtatása...",
-      "workbench.action.tasks.configureTaskRunner": "Feladatok konfigurálása..."
+      "workbench.action.tasks.configureTaskRunner": "Feladatok konfigurálása...",
+      "workbench.action.terminal.runSelectedText": "Kijelölt szöveg futtatása"
     },
     "viewQuickAccess": {
       "channels": "Kimenet"
@@ -1502,7 +1508,9 @@
       "open in integrated terminal": "Megnyitás integrált terminálban"
     },
     "windowActions": {
+      "close": "Ablak bezárása",
       "closeWindow": "Ablak bezárása",
+      "miCloseWindow": "Ablak bezárása",
       "about": "Névjegy",
       "miToggleFullScreen": "Teljes képernyő",
       "zoomReset": "Nagyítás visszaállítása"
@@ -1547,6 +1555,18 @@
       "mSelection": "Kijelölés",
       "mGoto": "Ugrás"
     },
+    "menubar.contribution": {
+      "mSelection": "Kijelölés",
+      "mView": "Nézet",
+      "mTerminal": "Terminál",
+      "mHelp": "Súgó"
+    },
+    "screenshotAnnotation": {
+      "redo": "Újra"
+    },
+    "toggleRenderWhitespace": {
+      "renderWhitespace.selection": "Kijelölés"
+    },
     "dialogHandler": {
       "copy": "Másolás"
     },
@@ -1555,7 +1575,18 @@
       "smartSelect.shrink": "Kijelölés szűkítése"
     },
     "linesOperations": {
+      "miCopyLinesUp": "Sor másolása eggyel feljebb",
+      "miCopyLinesDown": "Sor másolása eggyel lejjebb",
+      "miMoveLinesUp": "Sor feljebb helyezése",
+      "miMoveLinesDown": "Sor lejjebb helyezése",
+      "miDuplicateSelection": "Kijelölés megkettőzése",
       "duplicateSelection": "Kijelölés megkettőzése"
+    },
+    "terminalNotificationHandler": {
+      "terminalNotificationSource": "Terminál"
+    },
+    "searchEditorInput": {
+      "searchTitle": "Keresés"
     },
     "multicursor": {
       "miAddSelectionToNextFindMatch": "Következő előfordulás hozzáadása",
