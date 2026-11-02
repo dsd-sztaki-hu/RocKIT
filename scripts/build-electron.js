@@ -3,6 +3,7 @@
 const path = require('path');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
+const { stopWorkspaceMcpProcesses } = require('./stop-workspace-mcp');
 
 const resolvedRoot = fs.realpathSync.native(path.resolve(__dirname, '..'));
 
@@ -94,6 +95,16 @@ const rebuildWindowsNativeModules = () => {
         }
     }
 };
+
+// This must run before clean removes Electron and the MCP server from disk.
+if (isRebuild) {
+    try {
+        stopWorkspaceMcpProcesses(canonicalRoot);
+    } catch (error) {
+        console.error(error.message);
+        process.exit(1);
+    }
+}
 
 for (const args of yarnCommands) {
     const result = runYarn(args);
