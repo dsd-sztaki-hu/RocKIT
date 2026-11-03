@@ -110,6 +110,31 @@
     margin-top: 4px;
 }
 
+.data-repo-config__base-url-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+}
+
+.data-repo-config__base-url-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.data-repo-config__autodetect-tooltip {
+    display: inline-flex;
+    flex-shrink: 0;
+}
+
+.data-repo-config__autodetect-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    white-space: nowrap;
+}
+
 .data-repo-config__api-key-wrapper {
     display: flex;
     gap: 8px;

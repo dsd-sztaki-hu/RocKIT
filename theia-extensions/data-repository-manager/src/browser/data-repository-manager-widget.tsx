@@ -710,6 +710,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.providerService.listProviders(),
       this.providerService,
       await this.crosswalkRegistryService.list(),
+      this.messageService,
     )
     const result = await dialog.open()
     if (result) {
@@ -723,6 +724,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.providerService.listProviders(),
       this.providerService,
       await this.crosswalkRegistryService.list(),
+      this.messageService,
     )
     const result = await dialog.open()
     if (result) {

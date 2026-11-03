@@ -9,6 +9,7 @@ const assert = require('node:assert/strict')
 const {
   activateArpProvider,
   deactivateArpProvider,
+  DETECT_COMMAND,
   VALIDATE_COMMAND,
   CREATE_COMMAND,
   DELETE_COMMAND,
@@ -45,7 +46,7 @@ describe('ARP provider command boundary', () => {
     const calls = []
 
     await activateArpProvider(vscode, context, received => {
-      assert.equal(received, repository)
+      assert.equal(received.baseUrl, repository.baseUrl)
       return {
         supportsRoCrateUpload: async () => { calls.push('probe'); return true },
         validateToken: async () => { calls.push('token') },
@@ -69,6 +70,7 @@ describe('ARP provider command boundary', () => {
       extensionId: 'SZTAKI-DSD.arp-repository-provider',
       protocolVersion: '1.0',
       operations: {
+        detect: DETECT_COMMAND,
         validate: VALIDATE_COMMAND,
         create: CREATE_COMMAND,
         delete: DELETE_COMMAND,
@@ -90,6 +92,9 @@ describe('ARP provider command boundary', () => {
       },
       connection: { requiresApiKey: true },
     }])
+    assert.deepEqual(await commands.get(DETECT_COMMAND)({ baseUrl: repository.baseUrl }), {
+      supported: true,
+    })
     assert.deepEqual(await commands.get(VALIDATE_COMMAND)({ repository }), { valid: true })
     assert.deepEqual(await commands.get(METADATA_LANGUAGES_COMMAND)({ repository, collectionId: 'root' }),
       { data: ['en'] })
@@ -106,7 +111,7 @@ describe('ARP provider command boundary', () => {
       },
     })
     assert.equal(updated.pid, 'doi:10.1/example')
-    assert.deepEqual(calls, ['probe', 'token', 'languages:root', 'delete:doi:10.1/example'])
+    assert.deepEqual(calls, ['probe', 'probe', 'token', 'languages:root', 'delete:doi:10.1/example'])
 
     await deactivateArpProvider(vscode)
     assert.deepEqual(executions[1], [

@@ -2,7 +2,7 @@
   "name": "arp-repository-provider",
   "displayName": "RocKIT ARP Repository Provider",
   "description": "Reference ARP repository provider for RocKIT.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "SZTAKI-DSD",
   "license": "Apache-2.0",
   "private": true,

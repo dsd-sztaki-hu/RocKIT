@@ -46,6 +46,7 @@ export interface RepositoryRequiredMetadataPrompt {
 }
 
 export type RepositoryOperation =
+  | 'detect'
   | 'import'
   | 'create'
   | 'update'
@@ -73,6 +74,10 @@ export interface RepositoryProviderImportInput {
 
 export interface RepositoryProviderConnection {
   requiresApiKey?: boolean
+}
+
+export interface RepositoryDetectionResult {
+  supported: boolean
 }
 
 /** Provider-neutral location in which a repository can create a dataset. */
@@ -174,6 +179,7 @@ export class RepositoryProviderRegistry {
     }
 
     const operationNames: RepositoryOperation[] = [
+      'detect',
       'import',
       'create',
       'update',

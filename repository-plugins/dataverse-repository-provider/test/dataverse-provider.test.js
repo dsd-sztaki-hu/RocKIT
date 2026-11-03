@@ -9,6 +9,7 @@ const assert = require('node:assert/strict')
 const {
   activateDataverseProvider,
   deactivateDataverseProvider,
+  DETECT_COMMAND,
   CREATE_COMMAND,
   DELETE_COMMAND,
   IMPORT_COMMAND,
@@ -55,8 +56,9 @@ describe('Dataverse provider command boundary', () => {
     }
 
     await activateDataverseProvider(vscode, context, (received) => {
-      assert.equal(received, repository)
+      assert.equal(received.baseUrl, repository.baseUrl)
       return {
+        supportsRepository: async () => true,
         validateConnection: async () => ({
           userName: 'Alice',
           expirationDate: '2027-02-03T04:05:06.000Z',
@@ -80,6 +82,7 @@ describe('Dataverse provider command boundary', () => {
         extensionId: 'SZTAKI-DSD.dataverse-repository-provider',
         protocolVersion: '1.0',
         operations: {
+          detect: DETECT_COMMAND,
           create: CREATE_COMMAND,
           delete: DELETE_COMMAND,
           import: IMPORT_COMMAND,
@@ -102,6 +105,9 @@ describe('Dataverse provider command boundary', () => {
         connection: { requiresApiKey: true },
       },
     ])
+    assert.deepEqual(await commands.get(DETECT_COMMAND)({ baseUrl: repository.baseUrl }), {
+      supported: true,
+    })
     assert.deepEqual(await commands.get(VALIDATE_COMMAND)({ repository }), {
       valid: true,
       userName: 'Alice',

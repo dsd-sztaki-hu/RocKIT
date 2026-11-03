@@ -28,6 +28,15 @@ class DataverseClient {
     return this.request(`${this.baseUrl}/api/v1/users/token`)
   }
 
+  async supportsRepository() {
+    const root = await this.getRootDataverse()
+    return Boolean(
+      this.success(root) &&
+      typeof root.payload?.data?.id === 'number' &&
+      root.payload?.data?.alias === 'root'
+    )
+  }
+
   createDataset(collectionId, payload) {
     return this.request(
       `${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/datasets`,
@@ -167,11 +176,11 @@ class DataverseClient {
     if (!this.token) throw new Error('A Dataverse API token is required.')
 
     const root = await this.getRootDataverse()
-    if (
-      !this.success(root) ||
-      typeof root.payload?.data?.id !== 'number' ||
-      root.payload?.data?.alias !== 'root'
-    ) {
+    if (!(
+      this.success(root) &&
+      typeof root.payload?.data?.id === 'number' &&
+      root.payload?.data?.alias === 'root'
+    )) {
       throw new Error(
         `The server does not expose a compatible Dataverse API (${root.status}) at ${root.url}.`,
       )

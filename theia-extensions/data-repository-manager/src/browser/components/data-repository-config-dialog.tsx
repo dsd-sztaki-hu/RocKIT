@@ -5,6 +5,7 @@
 // ******************************************************************************************
 
 import { AbstractDialog, Message } from '@theia/core/lib/browser';
+import { MessageService } from '@theia/core/lib/common/message-service';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import DnsIcon from '@mui/icons-material/Dns';
@@ -18,7 +19,10 @@ import { nls } from '@theia/core/lib/common/nls';
 
 import { DataRepositoryConfig } from '../types';
 import { DataRepositorySuccessDialog } from './data-repository-success-dialog';
-import { RepositoryProviderRegistration } from '../repository-provider-registry';
+import {
+    RepositoryDetectionResult,
+    RepositoryProviderRegistration
+} from '../repository-provider-registry';
 import { RepositoryProviderService } from '../repository-provider-service';
 import type { CrosswalkRegistryEntry } from 'crosswalk-manager/lib/browser/crosswalk-manager-types';
 import '../styles/data-repository-config-dialog.css';
@@ -37,6 +41,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     private isEditingKey = true; 
     private showKey = false; 
     private isTesting = false; 
+    private isDetecting = false;
     private errorMsg: string | null = null;
     private result: DataRepositoryConfig | undefined;
 
@@ -44,7 +49,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         private readonly repoToEdit?: DataRepositoryConfig,
         private readonly providers: RepositoryProviderRegistration[] = [],
         private readonly providerService?: RepositoryProviderService,
-        private readonly crosswalks: CrosswalkRegistryEntry[] = []
+        private readonly crosswalks: CrosswalkRegistryEntry[] = [],
+        private readonly messageService?: MessageService
     ) {
         super({
             title: repoToEdit
@@ -165,6 +171,61 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         this.close();
     }
 
+    private async handleAutoDetect(): Promise<void> {
+        const baseUrl = this.baseUrlValue.trim();
+        if (!baseUrl || !this.providerService || this.isDetecting) return;
+
+        try {
+            const parsedUrl = new URL(baseUrl);
+            if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Invalid protocol');
+        } catch {
+            this.errorMsg = nls.localize(
+                'rockit/dataRepository/validBaseUrlRequired',
+                'Please enter a valid HTTP or HTTPS Base URL.'
+            );
+            this.render();
+            return;
+        }
+
+        this.isDetecting = true;
+        this.errorMsg = null;
+        this.render();
+        try {
+            for (const provider of this.providers) {
+                if (!provider.operations.detect) continue;
+                try {
+                    const result = await this.providerService.execute<
+                        { baseUrl: string },
+                        RepositoryDetectionResult
+                    >({
+                        providerId: provider.id,
+                        operation: 'detect',
+                        input: { baseUrl: baseUrl.replace(/\/+$/, '') }
+                    });
+                    if (result?.supported) {
+                        this.changeProvider(provider.id);
+                        return;
+                    }
+                } catch (error) {
+                    console.warn(`Repository provider '${provider.id}' could not identify the URL.`, error);
+                }
+            }
+
+            const message = nls.localize(
+                'rockit/dataRepository/typeNotDetected',
+                'None of the installed repository providers could identify this URL.'
+            );
+            if (this.messageService) {
+                void this.messageService.info(message);
+            } else {
+                this.errorMsg = message;
+            }
+        } finally {
+            this.isDetecting = false;
+            this.render();
+        }
+    }
+
     private compatibleCrosswalks(): CrosswalkRegistryEntry[] {
         if (!this.providerIdValue) return this.crosswalks;
         const providerId = this.providerIdValue.toLocaleLowerCase();
@@ -216,6 +277,11 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                 'rockit/dataRepository/connectionBeingVerified',
                 'The repository connection is being verified.'
             )
+            : this.isDetecting
+                ? nls.localize(
+                    'rockit/dataRepository/typeBeingDetected',
+                    'The repository type is being detected.'
+                )
             : this.providers.length === 0
                 ? nls.localize(
                     'rockit/dataRepository/installProviderBeforeSaving',
@@ -269,14 +335,47 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                         
                         <div>
                             <label className="data-repo-config__label">{nls.localize('rockit/dataRepository/displayName', 'Name (Display)')}</label>
-                            <input 
-                                className="theia-input data-repo-config__input" 
+                            <input
+                                className="theia-input data-repo-config__input"
                                 value={this.titleValue}
                                 onChange={(e) => { this.titleValue = e.target.value; this.render(); }}
-                                disabled={this.isTesting}
+                                disabled={this.isTesting || this.isDetecting}
                                 placeholder={nls.localize('rockit/dataRepository/displayNamePlaceholder', 'e.g. ARP Research Data Repository')}
                                 autoFocus
                             />
+                        </div>
+
+                        <div>
+                            <label className="data-repo-config__label">
+                                <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/dataRepository/baseUrl', 'Base URL')}
+                            </label>
+                            <div className="data-repo-config__base-url-row">
+                                <input
+                                    className="theia-input data-repo-config__input data-repo-config__base-url-input"
+                                    placeholder="https://repo.researchdata.hu"
+                                    value={this.baseUrlValue}
+                                    disabled={this.isTesting || this.isDetecting}
+                                    onChange={(e) => { this.baseUrlValue = e.target.value; this.render(); }}
+                                />
+                                <span
+                                    className="data-repo-config__autodetect-tooltip"
+                                    title={nls.localize(
+                                        'rockit/dataRepository/autoDetectTooltip',
+                                        'Ask the installed repository plugins to identify the repository type from this Base URL.'
+                                    )}
+                                >
+                                    <button
+                                        className="theia-button main data-repo-config__autodetect-btn"
+                                        disabled={!this.baseUrlValue.trim() || this.isTesting || this.isDetecting}
+                                        onClick={() => void this.handleAutoDetect()}
+                                    >
+                                        {this.isDetecting && <i className="codicon codicon-loading codicon-modifier-spin" />}
+                                        {this.isDetecting
+                                            ? nls.localize('rockit/dataRepository/detecting', 'Detecting...')
+                                            : nls.localize('rockit/dataRepository/autoDetect', 'Autodetect')}
+                                    </button>
+                                </span>
+                            </div>
                         </div>
 
                         <div>
@@ -286,7 +385,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                             <select
                                 className="theia-select data-repo-config__input"
                                 value={selectedProviderAvailable ? this.providerIdValue : ''}
-                                disabled={this.isTesting || this.providers.length === 0}
+                                disabled={this.isTesting || this.isDetecting || this.providers.length === 0}
                                 onChange={(event) => this.changeProvider(event.target.value)}
                             >
                                 <option value="" disabled>
@@ -316,7 +415,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                 <select
                                     className="theia-select data-repo-config__input"
                                     value={this.crosswalkIdValue}
-                                    disabled={this.isTesting}
+                                    disabled={this.isTesting || this.isDetecting}
                                     onChange={(event) => {
                                         this.crosswalkIdValue = event.target.value;
                                         this.render();
@@ -352,19 +451,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
 
                         <div>
                             <label className="data-repo-config__label">
-                                <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/dataRepository/baseUrl', 'Base URL')}
-                            </label>
-                            <input 
-                                className="theia-input data-repo-config__input" 
-                                placeholder="https://repo.researchdata.hu"
-                                value={this.baseUrlValue}
-                                disabled={this.isTesting}
-                                onChange={(e) => { this.baseUrlValue = e.target.value; this.render(); }}
-                            />
-                        </div>
-
-                        <div>
-                            <label className="data-repo-config__label">
                                 <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/dataRepository/apiToken', 'API Token')}
                             </label>
                             <div className="data-repo-config__api-key-wrapper">
@@ -374,7 +460,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                         type={this.showKey ? "text" : "password"}
                                         value={this.isEditingKey ? this.apiKeyValue : '••••••••••••••••'}
                                         onChange={(e) => { this.apiKeyValue = e.target.value; this.render(); }}
-                                        disabled={!this.isEditingKey || this.isTesting}
+                                        disabled={!this.isEditingKey || this.isTesting || this.isDetecting}
                                         placeholder={this.isEditingKey
                                             ? nls.localize('rockit/dataRepository/pasteToken', 'Paste API Token here')
                                             : nls.localize('rockit/dataRepository/storedSecurely', 'Stored securely')}
@@ -384,7 +470,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                             <IconButton 
                                                 size="small" 
                                                 onClick={() => { this.showKey = !this.showKey; this.render(); }}
-                                                disabled={this.isTesting}
+                                                disabled={this.isTesting || this.isDetecting}
                                                 style={{ color: 'var(--theia-foreground)', opacity: 0.7 }}
                                                 title={this.showKey
                                                     ? nls.localize('rockit/dataRepository/hideToken', 'Hide API Token')
@@ -398,7 +484,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                 {!this.isEditingKey && (
                                     <button 
                                         className="theia-button secondary data-repo-config__change-btn"
-                                        disabled={this.isTesting}
+                                        disabled={this.isTesting || this.isDetecting}
                                         onClick={() => { 
                                             this.isEditingKey = true; 
                                             this.apiKeyValue = ''; 
@@ -417,7 +503,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                     <button 
                         className="theia-button secondary data-repo-config__btn-cancel"
                         onClick={() => this.handleCancel()}
-                        disabled={this.isTesting}
+                        disabled={this.isTesting || this.isDetecting}
                     >
                         {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>

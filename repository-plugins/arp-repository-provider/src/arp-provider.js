@@ -15,6 +15,7 @@ const { ArpUpdateOperation } = require('./arp-update-operation')
 const { DataverseDestinationOperation } = require('./dataverse-destination-operation')
 
 const PROVIDER_ID = 'arp'
+const DETECT_COMMAND = 'rockit.arp.detect'
 const VALIDATE_COMMAND = 'rockit.arp.validate'
 const CREATE_COMMAND = 'rockit.arp.create'
 const DELETE_COMMAND = 'rockit.arp.delete'
@@ -49,6 +50,18 @@ async function activateArpProvider(
   const updateOperation = new ArpUpdateOperation({ vscode, clientFactory })
   const destinationOperation = new DataverseDestinationOperation({ clientFactory })
   context.subscriptions.push(
+    vscode.commands.registerCommand(DETECT_COMMAND, async (input) => {
+      if (typeof input?.baseUrl !== 'string' || !input.baseUrl.trim()) {
+        return { supported: false }
+      }
+      try {
+        return {
+          supported: await clientFactory({ baseUrl: input.baseUrl }).supportsRoCrateUpload(),
+        }
+      } catch {
+        return { supported: false }
+      }
+    }),
     vscode.commands.registerCommand(LIST_DESTINATIONS_COMMAND, (input) =>
       destinationOperation.list(input),
     ),
@@ -187,6 +200,7 @@ async function activateArpProvider(
     extensionId: registeredExtensionId,
     protocolVersion: '1.0',
     operations: {
+      detect: DETECT_COMMAND,
       validate: VALIDATE_COMMAND,
       create: CREATE_COMMAND,
       delete: DELETE_COMMAND,
@@ -224,6 +238,7 @@ module.exports = {
   activateArpProvider,
   deactivateArpProvider,
   PROVIDER_ID,
+  DETECT_COMMAND,
   VALIDATE_COMMAND,
   CREATE_COMMAND,
   DELETE_COMMAND,
