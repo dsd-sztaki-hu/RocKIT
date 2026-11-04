@@ -36,6 +36,7 @@ function fixture() {
     { '@id': newRemoteId, '@type': 'File' },
   ] }
   const plan: PreparedArpUpdateExport = {
+    crosswalkId: 'crosswalk-id',
     pid: 'doi:10.1/example',
     target: 'hdl:doi:10.1/example',
     crate: localCrate,
@@ -76,7 +77,7 @@ function fixture() {
   const persistUploadedFileHash = jest.fn(async () => undefined)
   const service = new ArpRoCrateExportService(
     {} as never, {} as never, {} as never,
-    { recordKnownHash } as never, { roCrate: localCrate } as never, {} as never,
+    { recordKnownHash } as never, { roCrate: localCrate } as never, {} as never, {} as never,
   )
   Object.assign(service, {
     getWorkspaceRoot: () => root,

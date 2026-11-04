@@ -35,6 +35,7 @@ describe('ARP create preparation', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     )
 
     const result = await service.prepare(new URI('file:///workspace'))
@@ -64,6 +65,7 @@ describe('ARP create preparation', () => {
     const service = new TestArpExportService(
       {} as never,
       fileService as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,

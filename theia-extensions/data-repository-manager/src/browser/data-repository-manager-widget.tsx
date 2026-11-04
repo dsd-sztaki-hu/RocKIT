@@ -1118,7 +1118,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
   protected async handlePluginArpCreate(repository: DataRepositoryConfig): Promise<void> {
     try {
-      const crosswalks = await this.compatibleCrosswalks(repository.providerId)
+      const crosswalks = await this.crosswalkRegistryService.list()
       const missingMetadata = await this.getMissingArpDatasetCreationMetadata()
       if (missingMetadata.length) {
         this.messageService.error(
@@ -1136,9 +1136,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.providerService,
       ).open()
       if (!selection) return
-      const defaults = await this.nativeExportService.getDatasetCreationMetadataDefaults(
-        crosswalks[0]?.id,
-      )
+      const defaults = await this.nativeExportService.getDatasetCreationMetadataDefaults()
       let languages: Array<{ value: string; label: string }>
       try {
         const payload = await this.providerService.executeForRepository(

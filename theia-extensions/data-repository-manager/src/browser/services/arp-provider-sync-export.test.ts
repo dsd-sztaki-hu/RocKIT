@@ -70,6 +70,7 @@ function fixture() {
     { recordKnownHash } as never,
     {} as never,
     {} as never,
+    {} as never,
   )
   Object.assign(service, {
     getWorkspaceRoot: () => root,
