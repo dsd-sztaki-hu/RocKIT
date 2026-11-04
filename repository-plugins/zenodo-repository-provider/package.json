@@ -2,7 +2,7 @@
   "name": "zenodo-repository-provider",
   "displayName": "RocKIT Zenodo Repository Provider",
   "description": "Reference Zenodo repository provider for RocKIT.",
-  "version": "1.0.2",
+  "version": "1.0.0",
   "publisher": "SZTAKI-DSD",
   "license": "Apache-2.0",
   "private": true,

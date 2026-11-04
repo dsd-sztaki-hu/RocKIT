@@ -197,6 +197,7 @@ async function activateArpProvider(
   await vscode.commands.executeCommand(REGISTER_COMMAND, {
     id: PROVIDER_ID,
     displayName: 'ARP',
+    detectionPriority: 100,
     extensionId: registeredExtensionId,
     protocolVersion: '1.0',
     operations: {

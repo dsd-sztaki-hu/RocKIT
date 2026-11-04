@@ -31,9 +31,10 @@ const renderDialog = (providers: any[]) => {
   return dialog
 }
 
-const provider = (id: string) => ({
+const provider = (id: string, detectionPriority = 0) => ({
   id,
   displayName: id.toUpperCase(),
+  detectionPriority,
   extensionId: `example.${id}`,
   protocolVersion: '1.0',
   operations: { detect: `example.${id}.detect`, validate: `example.${id}.validate` },
@@ -116,13 +117,13 @@ describe('DataRepositoryConfigDialog', () => {
     act(() => dialog.reactRoot.unmount())
   })
 
-  it('asks providers in order and selects the first provider that recognizes the URL', async () => {
+  it('asks specialized providers first and falls back to a generic provider', async () => {
     const execute = jest.fn()
       .mockResolvedValueOnce({ supported: false })
       .mockResolvedValueOnce({ supported: true })
     const dialog = new DataRepositoryConfigDialog(
       repository,
-      [provider('arp'), provider('dataverse'), provider('zenodo')],
+      [provider('dataverse'), provider('arp', 100), provider('zenodo')],
       { execute } as any,
     ) as any
 
@@ -135,6 +136,26 @@ describe('DataRepositoryConfigDialog', () => {
     expect(execute.mock.calls.map(call => call[0].providerId)).toEqual(['arp', 'dataverse'])
     expect((dialog.contentNode.querySelector('select') as HTMLSelectElement).value)
       .toBe('dataverse')
+
+    act(() => dialog.reactRoot.unmount())
+  })
+
+  it('stops at ARP before probing generic Dataverse when ARP recognizes the URL', async () => {
+    const execute = jest.fn().mockResolvedValue({ supported: true })
+    const dialog = new DataRepositoryConfigDialog(
+      repository,
+      [provider('dataverse', -100), provider('arp', 100)],
+      { execute } as any,
+    ) as any
+
+    await act(async () => {
+      dialog.render()
+      await dialog.handleAutoDetect()
+    })
+
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute.mock.calls[0][0].providerId).toBe('arp')
+    expect((dialog.contentNode.querySelector('select') as HTMLSelectElement).value).toBe('arp')
 
     act(() => dialog.reactRoot.unmount())
   })

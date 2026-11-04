@@ -67,6 +67,7 @@ describe('ARP provider command boundary', () => {
     assert.deepEqual(executions[0], ['rockit.repositories.registerProvider', {
       id: 'arp',
       displayName: 'ARP',
+      detectionPriority: 100,
       extensionId: 'SZTAKI-DSD.arp-repository-provider',
       protocolVersion: '1.0',
       operations: {

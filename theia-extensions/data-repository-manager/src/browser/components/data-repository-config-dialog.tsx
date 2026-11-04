@@ -191,8 +191,15 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         this.errorMsg = null;
         this.render();
         try {
-            for (const provider of this.providers) {
-                if (!provider.operations.detect) continue;
+            const detectionProviders = this.providers
+                .map((provider, index) => ({ provider, index }))
+                .filter(({ provider }) => Boolean(provider.operations.detect))
+                .sort((left, right) =>
+                    (right.provider.detectionPriority ?? 0) -
+                    (left.provider.detectionPriority ?? 0) || left.index - right.index
+                )
+                .map(({ provider }) => provider);
+            for (const provider of detectionProviders) {
                 try {
                     const result = await this.providerService.execute<
                         { baseUrl: string },

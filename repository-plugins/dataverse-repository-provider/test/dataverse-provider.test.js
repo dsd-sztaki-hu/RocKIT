@@ -79,6 +79,7 @@ describe('Dataverse provider command boundary', () => {
       {
         id: 'dataverse',
         displayName: 'Dataverse',
+        detectionPriority: -100,
         extensionId: 'SZTAKI-DSD.dataverse-repository-provider',
         protocolVersion: '1.0',
         operations: {
