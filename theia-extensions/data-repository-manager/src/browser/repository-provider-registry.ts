@@ -31,6 +31,7 @@ export interface RepositoryMetadataPromptField {
   type: 'text' | 'date' | 'textarea' | 'select'
   defaultValue?: string
   description?: string
+  helpText?: string
   required?: boolean
   searchable?: boolean
   options?: Array<{ value: string; label: string }>

@@ -166,7 +166,6 @@ describe('DataRepositoryConfigDialog', () => {
       repository,
       [provider('arp')],
       { execute: jest.fn().mockResolvedValue({ supported: false }) } as any,
-      [],
       { info } as any,
     ) as any
 

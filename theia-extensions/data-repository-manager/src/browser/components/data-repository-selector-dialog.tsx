@@ -32,7 +32,6 @@ import { nls } from '@theia/core/lib/common/nls';
 import { ExportDeleteAction } from './data-repository-export-delete-dialog';
 import { RepositoryOperation } from '../repository-provider-registry';
 import { RepositoryProviderService } from '../repository-provider-service';
-import type { CrosswalkRegistry } from 'crosswalk-manager/lib/browser/crosswalk-registry';
 
 export type DeleteExportTargetHandler = (
     repository: DataRepositoryConfig,
@@ -53,7 +52,6 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         private repositories: DataRepositoryConfig[],
         private readonly storeService: DataRepositoryStoreService,
         private readonly providerService: RepositoryProviderService,
-        private readonly crosswalkRegistryService: CrosswalkRegistry,
         private readonly hasWorkspace: boolean = true,
         private readonly exportTargetsByRepositoryId: Record<string, DataRepositoryExportTarget[]> = {},
         private readonly onShowRecentValidationResponse?: () => void,
@@ -126,8 +124,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         const dialog = new DataRepositoryConfigDialog(
             undefined,
             this.providerService.listProviders(),
-            this.providerService,
-            await this.crosswalkRegistryService.list()
+            this.providerService
         );
         const result = await dialog.open();
         if (result) {
@@ -139,8 +136,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         const dialog = new DataRepositoryConfigDialog(
             repo,
             this.providerService.listProviders(),
-            this.providerService,
-            await this.crosswalkRegistryService.list()
+            this.providerService
         );
         const result = await dialog.open();
         if (result) {

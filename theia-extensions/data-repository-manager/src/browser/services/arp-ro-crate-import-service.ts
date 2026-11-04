@@ -226,7 +226,6 @@ export class ArpRoCrateImportService {
         this.buildDatasetPidTarget(datasetPid),
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: mappingFileName,
-      crosswalkFile: repository.crosswalkId,
       syncType: 'update',
       status: 'success',
       lastSuccessfulActionAt: new Date().toISOString(),

@@ -72,7 +72,7 @@ describe('Dataverse provider link completion', () => {
   it('persists file mappings and the export target in RocKIT', async () => {
     const f = fixture()
     const result = await f.service.linkDataverseWithProvider(
-      f.repository, 'doi:10.1/example', async () => f.snapshot,
+      f.repository, 'doi:10.1/example', async () => f.snapshot, 'crosswalk-id',
     )
 
     expect(f.saveEntityIdMapping).toHaveBeenCalledWith(
@@ -89,6 +89,7 @@ describe('Dataverse provider link completion', () => {
         target: f.snapshot.target,
         repository: 'https://demo.dataverse.org',
         mappingFile: 'mapping.json',
+        crosswalkFile: 'crosswalk-id',
         status: 'success',
       }),
     )

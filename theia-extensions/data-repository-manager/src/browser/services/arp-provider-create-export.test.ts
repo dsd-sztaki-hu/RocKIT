@@ -63,7 +63,7 @@ describe('ARP plugin create export completion', () => {
     const invoke = jest.fn(async () => f.remote)
 
     const result = await f.service.exportToArpWithProvider(
-      f.repository, f.collection, f.metadata, invoke)
+      f.repository, f.collection, f.metadata, invoke, 'crosswalk-id')
 
     expect(invoke).toHaveBeenCalledWith(expect.objectContaining({
       repository: f.repository, collectionId: 'root', plan: f.plan,
@@ -86,6 +86,7 @@ describe('ARP plugin create export completion', () => {
 
     await expect(f.service.exportToArpWithProvider(
       f.repository, f.collection, f.metadata, async () => interrupted,
+      'crosswalk-id',
     )).rejects.toThrow('File upload failed')
     expect(f.appendExportLog.mock.calls.map(call => call[1].status)).toEqual(['cancelled'])
     expect(f.appendExportLog.mock.calls[0][1].target).toBe(
@@ -97,7 +98,7 @@ describe('ARP plugin create export completion', () => {
     f.remote.pid = 'hdl:21.15109/ARP/VYBLPE'
 
     const result = await f.service.exportToArpWithProvider(
-      f.repository, f.collection, f.metadata, async () => f.remote)
+      f.repository, f.collection, f.metadata, async () => f.remote, 'crosswalk-id')
 
     expect(result.target).toBe(
       'https://repo.example.org/dataset.xhtml?persistentId=hdl:21.15109/ARP/VYBLPE')
@@ -140,7 +141,7 @@ describe('ARP plugin create export completion', () => {
         }
         expect(f.recordKnownHash).toHaveBeenCalledTimes(2)
         return f.remote
-      })
+      }, 'crosswalk-id')
 
     expect(f.recordKnownHash).toHaveBeenCalledWith(
       expect.anything(), 'file.txt', 123, 3, '900150983cd24fb0d6963f7d28e17f72')
@@ -160,6 +161,7 @@ describe('ARP plugin create export completion', () => {
         validationErrors: [{ errorEntity: './', errors: [{ errorMessage: 'Invalid title' }] }],
         payload: { errors: [] },
       } }),
+      'crosswalk-id',
     )).rejects.toBeInstanceOf(ArpRoCrateValidationError)
     expect(f.appendExportLog).not.toHaveBeenCalled()
   })

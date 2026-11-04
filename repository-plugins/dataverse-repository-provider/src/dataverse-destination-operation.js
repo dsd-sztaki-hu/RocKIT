@@ -11,18 +11,27 @@ class DataverseDestinationOperation {
 
   async list(input) {
     const client = this.client(input)
-    const parentId = this.text(input?.parentId) || 'root'
+    const requestedParentId = this.text(input?.parentId)
+    let parentId = requestedParentId
+    let root
+    if (!parentId) {
+      const result = await client.getCollection(':root')
+      this.requireSuccess(result, 'load the root collection')
+      root = result.payload?.data
+      parentId = this.text(root?.alias)
+      if (!parentId) {
+        throw new Error('The repository root collection does not have an alias.')
+      }
+    }
     // Match the immediate parent, rather than the whole subtree. The Search
     // API bounds the response to 1,000 collections without loading descendants.
     let destinations = await this.searchPages(
-      client, `dvParentAlias:"${this.escapeQuery(parentId)}"`, parentId,
+      client, this.parentQuery(parentId), parentId,
     )
     destinations = await this.addChildIndicators(client, destinations)
 
-    if (parentId === 'root' && destinations.length === 0) {
-      const root = await client.getCollection('root')
-      this.requireSuccess(root, 'load the root collection')
-      destinations = [this.destination(root.payload?.data, undefined, false)]
+    if (!requestedParentId && destinations.length === 0) {
+      destinations = [this.destination(root, undefined, false)]
     }
 
     return { destinations }
@@ -89,6 +98,7 @@ class DataverseDestinationOperation {
     const seen = new Set()
     return items
       .filter(item => String(item?.type || '').toLowerCase() === 'dataverse')
+      .filter(item => !parentId || this.text(item?.parentDataverseIdentifier) === parentId)
       .slice(0, 1000)
       .map(item => this.destination(item, parentId, true))
       .filter(destination => {
@@ -122,6 +132,10 @@ class DataverseDestinationOperation {
     // Restrict every term to the collection's own name, rather than affiliation,
     // description or parent metadata. Prefix matching supports typing ahead.
     return `dvName:(${parts.map(part => `${part}*`).join(' AND ')})`
+  }
+
+  parentQuery(parentId) {
+    return `parentDataverseIdentifier:"${this.escapeQuery(parentId)}"`
   }
 
   canAddDataset(data) {

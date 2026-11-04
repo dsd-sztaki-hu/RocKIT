@@ -147,6 +147,7 @@ describe('Dataverse plugin create export completion', () => {
         })
         return f.remote
       },
+      'crosswalk-id',
     )
 
     expect(result.target).toBe(
@@ -197,6 +198,7 @@ describe('Dataverse plugin create export completion', () => {
         f.metadata,
         new Set(['citation']),
         async () => interrupted,
+        'crosswalk-id',
       ),
     ).rejects.toThrow('Upload failed')
     expect(f.appendExportLog.mock.calls.map(call => call[1].status)).toEqual([

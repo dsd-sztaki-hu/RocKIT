@@ -29,7 +29,6 @@ const renderDialog = (repositories: DataRepositoryConfig[]) => {
       getProviderForRepository: jest.fn(),
       supports: jest.fn(() => false),
     } as any,
-    { list: jest.fn(async () => []) } as any,
   ) as any
 
   act(() => dialog.render())

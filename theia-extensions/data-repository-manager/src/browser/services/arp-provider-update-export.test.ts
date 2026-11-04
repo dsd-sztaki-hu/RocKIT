@@ -87,11 +87,11 @@ function fixture() {
   })
   const repository = {
     id: 'arp', title: 'ARP', baseUrl: 'https://repo.example.org', apiKey: 'secret',
-    providerId: 'arp', crosswalkId: 'crosswalk-id',
+    providerId: 'arp',
   }
   const target = {
     pid: plan.pid, target: plan.target, repository: repository.baseUrl,
-    mappingFile: plan.mappingFileName, syncType: 'create' as const,
+    mappingFile: plan.mappingFileName, crosswalkFile: 'crosswalk-id', syncType: 'create' as const,
   }
   return {
     service, repository, target, plan, remote, remoteCrate, fileResult,

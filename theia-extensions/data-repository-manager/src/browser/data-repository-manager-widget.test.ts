@@ -99,7 +99,6 @@ const repository: DataRepositoryConfig = {
   baseUrl: 'https://demo.dataverse.org',
   apiKey: 'secret',
   providerId: 'dataverse',
-  crosswalkId: 'arp-dataverse',
 }
 
 const createWidget = () => {
@@ -202,14 +201,12 @@ describe('DataRepositoryManagerWidget', () => {
     expect(widget.update).toHaveBeenCalledTimes(2)
   })
 
-  it('opens repository creation with only registered plugin providers and crosswalks', async () => {
+  it('opens repository creation with only registered plugin providers', async () => {
     const {
       widget,
       storeService,
       providerService,
-      crosswalkRegistryService,
       providers,
-      crosswalks,
       messageService,
     } = createWidget()
     mockConfigDialogOpen.mockResolvedValue(repository)
@@ -217,12 +214,10 @@ describe('DataRepositoryManagerWidget', () => {
     await widget.handleAddRepository()
 
     expect(providerService.listProviders).toHaveBeenCalledTimes(1)
-    expect(crosswalkRegistryService.list).toHaveBeenCalledTimes(1)
     expect(mockConfigDialogConstructor).toHaveBeenCalledWith(
       undefined,
       providers,
       providerService,
-      crosswalks,
       messageService,
     )
     expect(storeService.saveRepository).toHaveBeenCalledWith(repository)

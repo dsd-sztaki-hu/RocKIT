@@ -5,6 +5,7 @@
 // ******************************************************************************************
 
 import { inject, injectable } from 'inversify'
+import { nls } from '@theia/core/lib/common/nls'
 import { CrosswalkRegistry } from 'crosswalk-manager/lib/browser/crosswalk-registry'
 import {
   applyZenodoMetadataToRoCrate,
@@ -25,7 +26,15 @@ export interface PrepareRepositoryMetadataInput {
   existingMetadata?: JsonObject
   forUpdate?: boolean
   repositoryOptions?: Record<string, Array<{ value: string; label: string }>>
+  crosswalkOptions?: Array<{ value: string; label: string }>
 }
+
+export interface PreparedRepositoryMetadata {
+  metadata: JsonObject
+  crosswalkId?: string
+}
+
+const NO_CROSSWALK_VALUE = '__rockit_no_crosswalk__'
 
 export interface ApplyRepositoryMetadataInput {
   repositoryType: string
@@ -56,10 +65,13 @@ export class RepositoryCrosswalkService {
     protected readonly registry: CrosswalkRegistry,
   ) {}
 
-  async prepareRepositoryMetadata(input: PrepareRepositoryMetadataInput): Promise<JsonObject> {
+  async prepareRepositoryMetadata(
+    input: PrepareRepositoryMetadataInput,
+  ): Promise<PreparedRepositoryMetadata> {
     this.requireRepositoryType(input?.repositoryType, 'zenodo')
-    const crosswalk = await this.readCrosswalk(input?.crosswalkId)
-    const { metadata, diagnostics } = buildZenodoMetadataFromCrosswalk(input.crate, crosswalk)
+    let crosswalkId = input?.crosswalkId
+    let crosswalk = await this.readCrosswalk(crosswalkId)
+    let { metadata, diagnostics } = buildZenodoMetadataFromCrosswalk(input.crate, crosswalk)
 
     if (input.forUpdate) {
       const missing = missingRequiredZenodoMetadataFields(metadata, crosswalk)
@@ -67,7 +79,7 @@ export class RepositoryCrosswalkService {
       if (missing.length) {
         throw new Error(`The RO-Crate cannot update Zenodo because these required metadata fields are missing: ${missing.join(', ')}.`)
       }
-      return metadata
+      return { metadata, crosswalkId }
     }
 
     if (input.existingMetadata) {
@@ -79,7 +91,7 @@ export class RepositoryCrosswalkService {
         }
       }
       this.requireCompleteMetadata(metadata, crosswalk, 'update Zenodo')
-      return metadata
+      return { metadata, crosswalkId }
     }
 
     let missing = missingRequiredZenodoMetadataFields(metadata, crosswalk)
@@ -90,15 +102,29 @@ export class RepositoryCrosswalkService {
       PRESERVED_ZENODO_ACCESS_FIELDS.includes(field),
     )
 
-    if (fallbackAccessRight || needsAccessPolicy) {
+    if (input.crosswalkOptions?.length || fallbackAccessRight || needsAccessPolicy) {
       const prompt = () => this.promptForZenodoAccessPolicy(
         metadata,
         crosswalk,
         input.repositoryOptions?.license ?? [],
+        input.crosswalkOptions ?? [],
+        crosswalkId,
       )
       const supplied = this.operationProgressService
         ? await this.operationProgressService.withUserInput(prompt)
         : await prompt()
+      const selectedCrosswalkId = this.text(supplied.crosswalkId) ?? crosswalkId
+      delete supplied.crosswalkId
+      if (selectedCrosswalkId === NO_CROSSWALK_VALUE) {
+        metadata = this.unmappedRootMetadata(input.crate)
+        Object.assign(metadata, supplied)
+        return { metadata, crosswalkId: undefined }
+      }
+      if (selectedCrosswalkId !== crosswalkId) {
+        crosswalkId = selectedCrosswalkId
+        crosswalk = await this.readCrosswalk(crosswalkId)
+        metadata = buildZenodoMetadataFromCrosswalk(input.crate, crosswalk).metadata
+      }
       Object.assign(metadata, supplied)
       for (const field of ['license', 'embargo_date', 'access_conditions']) {
         if (!Object.prototype.hasOwnProperty.call(supplied, field)) {
@@ -113,7 +139,7 @@ export class RepositoryCrosswalkService {
         `The RO-Crate cannot be exported to Zenodo because these required metadata fields are missing: ${missing.join(', ')}.`,
       )
     }
-    return metadata
+    return { metadata, crosswalkId }
   }
 
   async applyRepositoryMetadata(input: ApplyRepositoryMetadataInput) {
@@ -152,6 +178,8 @@ export class RepositoryCrosswalkService {
     metadata: JsonObject,
     crosswalk: JsonObject,
     repositoryLicenses: Array<{ value: string; label: string }>,
+    crosswalkOptions: Array<{ value: string; label: string }>,
+    crosswalkId: string,
   ): Promise<JsonObject> {
     const defaultLicense =
       this.text(metadata.license) || (metadata.upload_type === 'dataset' ? 'cc-zero' : 'cc-by')
@@ -170,6 +198,20 @@ export class RepositoryCrosswalkService {
       description: 'Complete the repository-required values that could not be mapped from the RO-Crate.',
       acceptLabel: 'Export',
       fields: [
+        ...(crosswalkOptions.length ? [{
+          id: 'crosswalkId',
+          label: nls.localize('rockit/dataRepository/crosswalk', 'Metadata Crosswalk'),
+          type: 'select' as const,
+          defaultValue: crosswalkId,
+          options: [{
+            value: NO_CROSSWALK_VALUE,
+            label: nls.localize('rockit/dataRepository/noCrosswalk', 'No crosswalk'),
+          }, ...crosswalkOptions],
+          helpText: nls.localize(
+            'rockit/dataRepository/crosswalkHelp',
+            'A metadata crosswalk translates RO-Crate metadata into the fields expected by the repository. The selected crosswalk is saved with this export and reused for later updates and synchronization.',
+          ),
+        }] : []),
         {
           id: 'access_right',
           label: 'Access right',
@@ -221,6 +263,22 @@ export class RepositoryCrosswalkService {
       }
     }
     return Array.from(byValue.values())
+  }
+
+  protected unmappedRootMetadata(crate: JsonObject): JsonObject {
+    const graph = crate['@graph']
+    if (!Array.isArray(graph)) {
+      throw new Error('The RO-Crate does not contain an @graph array.')
+    }
+    const root = graph.find(entity =>
+      entity && typeof entity === 'object' && !Array.isArray(entity) && entity['@id'] === './',
+    )
+    if (!root) {
+      throw new Error('The RO-Crate does not contain a root dataset entity.')
+    }
+    return Object.fromEntries(
+      Object.entries(root).filter(([field]) => !field.startsWith('@')),
+    )
   }
 
   protected text(value: unknown): string | undefined {

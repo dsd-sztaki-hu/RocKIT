@@ -89,6 +89,7 @@ export class ArpRoCrateLinkService {
     datasetUrl: string,
     invokeProvider: (input: Record<string, unknown>) =>
       Promise<DataverseProviderLinkSnapshot | undefined>,
+    crosswalkId?: string,
   ): Promise<ArpRoCrateLinkResult> {
     const rootUri = this.getWorkspaceRoot()
     const localCrate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
@@ -108,6 +109,7 @@ export class ArpRoCrateLinkService {
       target: remote.target,
       repository: baseUrl,
       mappingFile: mappingFileName,
+      crosswalkFile: crosswalkId,
       syncType: 'update',
       status: 'success',
       lastSuccessfulActionAt: new Date().toISOString(),

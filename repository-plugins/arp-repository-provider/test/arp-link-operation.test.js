@@ -83,8 +83,8 @@ function testEnvironment() {
       baseUrl: 'https://repo.researchdata.hu',
       apiKey: 'secret',
       providerId: 'arp',
-      crosswalkId: 'arp-crosswalk',
     },
+    crosswalkId: 'arp-crosswalk',
     datasetUrl: 'https://repo.researchdata.hu/dataset.xhtml?persistentId=hdl:21.15109/ARP.TEST',
   }
   return { operation, input, calls, written }

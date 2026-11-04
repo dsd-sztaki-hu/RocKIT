@@ -221,6 +221,7 @@ export interface ArpProviderSyncCheckpoint {
 interface ActiveArpProviderCreate {
   rootUri: URI
   repository: DataRepositoryConfig
+  crosswalkId?: string
   plan: PreparedArpCreateExport
   mappingFileName: string
   originalToUploadIds: Map<string, string>
@@ -311,7 +312,6 @@ const DATAVERSE_FILE_CONTEXT: Record<string, string> = {
   url: 'https://schema.org/url',
 }
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
-const DATAVERSE_CROSSWALK_FILE_NAME = 'arp-dataverse-crosswalk.json'
 
 @injectable()
 export class ArpRoCrateExportService {
@@ -441,6 +441,7 @@ export class ArpRoCrateExportService {
       plan: PreparedArpCreateExport
       operationId: string
     }) => Promise<ArpProviderCreateResult | ArpProviderCreateValidationResult>,
+    crosswalkId?: string,
   ): Promise<ArpRoCrateExportResult> {
     const rootUri = this.getWorkspaceRoot()
     const plan = await this.prepareCreateExport(rootUri)
@@ -449,7 +450,7 @@ export class ArpRoCrateExportService {
     const mappingFileName = await this.createUniqueMappingFileName(rootUri)
     const operationId = this.randomId(32)
     const checkpoint: ActiveArpProviderCreate = {
-      rootUri, repository, plan, mappingFileName, originalToUploadIds,
+      rootUri, repository, crosswalkId, plan, mappingFileName, originalToUploadIds,
       uploadIdMapping: this.buildInitialUploadEntityIdMapping(plan.uploadCrate),
       checkpointedFiles: new Set(), logStarted: false,
     }
@@ -527,7 +528,7 @@ export class ArpRoCrateExportService {
       const restoredCrate = this.buildRestoredCreatedCrate(remote.uploadCrate, remote.uploadIdMapping, remote.pid)
       await this.appendExportLog(rootUri, {
         target, repository: baseUrl, mappingFile: mappingFileName,
-        crosswalkFile: repository.crosswalkId ?? DATAVERSE_CROSSWALK_FILE_NAME,
+        crosswalkFile: crosswalkId,
         syncType: 'create', status: 'success', lastSuccessfulActionAt: new Date().toISOString(),
         datasetName: this.getRootDatasetName(plan.crate),
       })
@@ -573,7 +574,7 @@ export class ArpRoCrateExportService {
       )
       await this.appendExportLog(active.rootUri, {
         target: active.target, repository: baseUrl, mappingFile: active.mappingFileName,
-        crosswalkFile: active.repository.crosswalkId ?? DATAVERSE_CROSSWALK_FILE_NAME,
+        crosswalkFile: active.crosswalkId,
         syncType: 'create', status: 'cancelled',
         datasetName: this.getRootDatasetName(active.plan.crate),
       })
@@ -724,6 +725,7 @@ export class ArpRoCrateExportService {
     exportTarget: DataRepositoryExportTarget,
     invokeProvider: (input: Record<string, unknown>) => Promise<unknown>,
   ): Promise<ArpRoCrateUpdateAnalysisResult | undefined> {
+    const crosswalkId = exportTarget.crosswalkFile
     const lookup = await invokeProvider({
       phase: 'loadRemote', repository, pid: exportTarget.pid,
     })
@@ -753,7 +755,7 @@ export class ArpRoCrateExportService {
       target: plan.target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: plan.mappingFileName,
-      crosswalkFile: repository.crosswalkId ?? DATAVERSE_CROSSWALK_FILE_NAME,
+      crosswalkFile: crosswalkId,
       syncType: 'update',
       status: 'cancelled',
       datasetName: this.getRootDatasetName(plan.crate),
@@ -782,7 +784,7 @@ export class ArpRoCrateExportService {
         target: plan.target,
         repository: this.normalizeBaseUrl(repository.baseUrl),
         mappingFile: plan.mappingFileName,
-        crosswalkFile: repository.crosswalkId ?? DATAVERSE_CROSSWALK_FILE_NAME,
+        crosswalkFile: crosswalkId,
         syncType: 'update',
         status: 'success',
         lastSuccessfulActionAt: new Date().toISOString(),
@@ -972,7 +974,7 @@ export class ArpRoCrateExportService {
       ...plan.exportLogEntry,
       target: plan.target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
-      crosswalkFile: repository.crosswalkId ?? plan.exportLogEntry.crosswalkFile,
+      crosswalkFile: plan.exportLogEntry.crosswalkFile,
       syncType: 'sync',
       status: 'cancelled',
     })
@@ -1015,7 +1017,7 @@ export class ArpRoCrateExportService {
         target: plan.target,
         repository: this.normalizeBaseUrl(repository.baseUrl),
         mappingFile: plan.mappingFileName,
-        crosswalkFile: repository.crosswalkId ?? plan.exportLogEntry.crosswalkFile,
+        crosswalkFile: plan.exportLogEntry.crosswalkFile,
         syncType: 'sync',
         status: 'success',
         lastSuccessfulActionAt: new Date().toISOString(),

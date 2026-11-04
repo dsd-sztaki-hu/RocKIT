@@ -18,8 +18,6 @@ export interface DataRepositoryConfig {
    * built-in URL capability detection until they are migrated.
    */
   providerId?: string
-  /** Identifier of the crosswalk selected from RocKIT's application registry. */
-  crosswalkId?: string
 }
 
 export interface DataRepositoryTableProps {
