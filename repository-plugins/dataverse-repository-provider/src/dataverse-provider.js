@@ -15,6 +15,7 @@ const { DataverseSyncOperation } = require('./dataverse-sync-operation')
 const { DataverseDestinationOperation } = require('./dataverse-destination-operation')
 
 const PROVIDER_ID = 'dataverse'
+const DETECT_COMMAND = 'rockit.dataverse.detect'
 const CREATE_COMMAND = 'rockit.dataverse.create'
 const DELETE_COMMAND = 'rockit.dataverse.delete'
 const IMPORT_COMMAND = 'rockit.dataverse.import'
@@ -49,6 +50,18 @@ async function activateDataverseProvider(
   const syncOperation = new DataverseSyncOperation({ vscode, clientFactory })
   const destinationOperation = new DataverseDestinationOperation({ clientFactory })
   context.subscriptions.push(
+    vscode.commands.registerCommand(DETECT_COMMAND, async (input) => {
+      if (typeof input?.baseUrl !== 'string' || !input.baseUrl.trim()) {
+        return { supported: false }
+      }
+      try {
+        return {
+          supported: await clientFactory({ baseUrl: input.baseUrl }).supportsRepository(),
+        }
+      } catch {
+        return { supported: false }
+      }
+    }),
     vscode.commands.registerCommand(LIST_DESTINATIONS_COMMAND, (input) =>
       destinationOperation.list(input),
     ),
@@ -195,9 +208,11 @@ async function activateDataverseProvider(
   await vscode.commands.executeCommand(REGISTER_COMMAND, {
     id: PROVIDER_ID,
     displayName: 'Dataverse',
+    detectionPriority: -100,
     extensionId: registeredExtensionId,
     protocolVersion: '1.0',
     operations: {
+      detect: DETECT_COMMAND,
       create: CREATE_COMMAND,
       delete: DELETE_COMMAND,
       import: IMPORT_COMMAND,
@@ -235,6 +250,7 @@ module.exports = {
   activateDataverseProvider,
   deactivateDataverseProvider,
   PROVIDER_ID,
+  DETECT_COMMAND,
   CREATE_COMMAND,
   DELETE_COMMAND,
   IMPORT_COMMAND,

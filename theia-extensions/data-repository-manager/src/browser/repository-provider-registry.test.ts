@@ -118,6 +118,17 @@ describe('RepositoryProviderRegistry', () => {
     ).toThrow('must implement at least one operation')
   })
 
+  it('rejects a non-finite detection priority', () => {
+    const registry = new RepositoryProviderRegistry()
+
+    expect(() =>
+      registry.register({
+        ...testProvider(),
+        detectionPriority: Number.POSITIVE_INFINITY,
+      }),
+    ).toThrow("Repository provider 'test-repository' has an invalid detection priority.")
+  })
+
   it('only allows the owning extension to unregister a provider', () => {
     const registry = new RepositoryProviderRegistry()
     registry.register(testProvider())

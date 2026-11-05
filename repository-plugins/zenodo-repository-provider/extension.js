@@ -16,8 +16,10 @@ const { ZenodoDeleteOperation } = require('./src/zenodo-delete-operation')
 const { ZenodoLinkOperation } = require('./src/zenodo-link-operation')
 const { ZenodoValidateOperation } = require('./src/zenodo-validate-operation')
 const { ZenodoTargetOperation } = require('./src/zenodo-target-operation')
+const { ZenodoDetectOperation } = require('./src/zenodo-detect-operation')
 
 const PROVIDER_ID = 'zenodo'
+const DETECT_COMMAND = 'rockit.zenodo.detect'
 const REGISTER_PROVIDER_COMMAND = 'rockit.repositories.registerProvider'
 const UNREGISTER_PROVIDER_COMMAND = 'rockit.repositories.unregisterProvider'
 const CREATE_COMMAND = 'rockit.zenodo.create'
@@ -93,8 +95,12 @@ async function activate(context) {
     vscode,
     clientFactory: () => undefined,
   })
+  const detectOperation = new ZenodoDetectOperation()
 
   context.subscriptions.push(
+    vscode.commands.registerCommand(DETECT_COMMAND, (input) =>
+      detectOperation.execute(input),
+    ),
     vscode.commands.registerCommand(CREATE_COMMAND, (input) =>
       withRepositoryProgress(
         vscode,
@@ -203,6 +209,7 @@ async function activate(context) {
     extensionId: registeredExtensionId,
     protocolVersion: '1.0',
     operations: {
+      detect: DETECT_COMMAND,
       create: CREATE_COMMAND,
       update: UPDATE_COMMAND,
       sync: SYNC_COMMAND,

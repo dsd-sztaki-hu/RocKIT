@@ -129,9 +129,10 @@ const createWidget = () => {
     list: jest.fn().mockResolvedValue(crosswalks),
   }
   const workspaceService = { tryGetRoots: jest.fn(() => []) }
+  const messageService = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
 
   const widget = new DataRepositoryManagerWidget(
-    { info: jest.fn(), warn: jest.fn(), error: jest.fn() } as any,
+    messageService as any,
     storeService as any,
     {} as any,
     {} as any,
@@ -156,6 +157,7 @@ const createWidget = () => {
     crosswalkRegistryService,
     providers,
     crosswalks,
+    messageService,
   }
 }
 
@@ -208,6 +210,7 @@ describe('DataRepositoryManagerWidget', () => {
       crosswalkRegistryService,
       providers,
       crosswalks,
+      messageService,
     } = createWidget()
     mockConfigDialogOpen.mockResolvedValue(repository)
 
@@ -220,6 +223,7 @@ describe('DataRepositoryManagerWidget', () => {
       providers,
       providerService,
       crosswalks,
+      messageService,
     )
     expect(storeService.saveRepository).toHaveBeenCalledWith(repository)
   })

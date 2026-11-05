@@ -46,6 +46,7 @@ export interface RepositoryRequiredMetadataPrompt {
 }
 
 export type RepositoryOperation =
+  | 'detect'
   | 'import'
   | 'create'
   | 'update'
@@ -75,6 +76,10 @@ export interface RepositoryProviderConnection {
   requiresApiKey?: boolean
 }
 
+export interface RepositoryDetectionResult {
+  supported: boolean
+}
+
 /** Provider-neutral location in which a repository can create a dataset. */
 export interface RepositoryDestination {
   id: string
@@ -101,6 +106,8 @@ export interface RepositoryDestinationCheckResult {
 export interface RepositoryProviderRegistration {
   id: string
   displayName: string
+  /** Higher values are probed first so specialized providers can precede generic bases. */
+  detectionPriority?: number
   extensionId: string
   protocolVersion: string
   operations: RepositoryProviderOperations
@@ -158,6 +165,14 @@ export class RepositoryProviderRegistry {
     if (!provider.displayName?.trim()) {
       throw new Error('Repository provider display name is required.')
     }
+    if (
+      provider.detectionPriority !== undefined &&
+      !Number.isFinite(provider.detectionPriority)
+    ) {
+      throw new Error(
+        `Repository provider '${provider.id}' has an invalid detection priority.`,
+      )
+    }
     if (!this.isExtensionId(provider.extensionId)) {
       throw new Error(
         `Invalid repository provider extension id '${String(provider.extensionId)}'.`,
@@ -174,6 +189,7 @@ export class RepositoryProviderRegistry {
     }
 
     const operationNames: RepositoryOperation[] = [
+      'detect',
       'import',
       'create',
       'update',
