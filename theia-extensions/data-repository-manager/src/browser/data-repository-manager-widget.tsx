@@ -37,6 +37,7 @@ import {
   ExportDeleteAction,
 } from './components/data-repository-export-delete-dialog'
 import { DataRepositorySelectorDialog } from './components/data-repository-selector-dialog'
+import { DataRepositoryExportRecordDialog } from './components/data-repository-export-record-dialog'
 import { DataRepositoryTable } from './components/data-repository-table'
 import { DataRepositoryToolbar } from './components/data-repository-toolbar'
 import { DataverseCollectionBrowserDialog } from './components/dataverse-collection-browser-dialog'
@@ -62,6 +63,7 @@ import {
   DataverseProviderLinkSnapshot,
 } from './services/arp-ro-crate-link-service'
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service'
+import { DataRepositoryExportRecordService } from './services/data-repository-export-record-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
 import {
   DataverseProviderCreateResult,
@@ -95,6 +97,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   protected selectedKeys: React.Key[] = []
   protected recentArpValidationError: ArpRoCrateValidationError | undefined
   protected readonly disposables = new DisposableCollection()
+
+  @inject(DataRepositoryExportRecordService)
+  protected readonly exportRecordService: DataRepositoryExportRecordService
 
   constructor(
     @inject(MessageService) protected readonly messageService: MessageService,
@@ -537,6 +542,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         : undefined,
       async (repository, target, action) =>
         this.handleDeleteExportTarget(repository, target, action),
+      async (_repository, target) => this.handleEditExportTarget(target),
     )
     const repositorySelection = await selector.open()
     if (!repositorySelection) {
@@ -586,6 +592,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           : undefined,
         async (repository, target, action) =>
           this.handleDeleteExportTarget(repository, target, action),
+        async (_repository, target) => this.handleEditExportTarget(target),
       )
       repositorySelection = await selector.open()
 
@@ -878,6 +885,32 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         return false
       }
     })
+  }
+
+  protected async handleEditExportTarget(target: DataRepositoryExportTarget): Promise<boolean> {
+    try {
+      const entry = await this.exportRecordService.readExport(target)
+      const crosswalks = await this.crosswalkRegistryService.list()
+      const result = await new DataRepositoryExportRecordDialog(entry, crosswalks).open()
+      if (!result || result.crosswalkId === entry.crosswalkFile) return false
+      if (result.crosswalkId && !(await this.crosswalkRegistryService.read(result.crosswalkId))) {
+        throw new Error(nls.localize(
+          'rockit/dataRepository/selectedCrosswalkMissing',
+          "The selected crosswalk '{0}' is no longer registered.",
+          result.crosswalkId,
+        ))
+      }
+      await this.exportRecordService.changeCrosswalk(target, result.crosswalkId)
+      target.crosswalkFile = result.crosswalkId
+      return true
+    } catch (error) {
+      this.messageService.error(nls.localize(
+        'rockit/dataRepository/editExportFailed',
+        'Could not edit the export record: {0}',
+        error instanceof Error ? error.message : String(error),
+      ))
+      return false
+    }
   }
 
   protected async handleDeleteExportTarget(

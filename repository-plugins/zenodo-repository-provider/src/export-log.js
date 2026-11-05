@@ -32,7 +32,9 @@ function normalizeExportLogEntries(value) {
       repository,
       mappingFile,
       crosswalkFile:
-        latest.crosswalkFile || text(candidate.crosswalkFile) || previous?.crosswalkFile,
+        Object.prototype.hasOwnProperty.call(candidate, 'crosswalkFile')
+          ? text(candidate.crosswalkFile) || undefined
+          : latest.crosswalkFile || previous?.crosswalkFile,
       datasetName: text(candidate.datasetName) || previous?.datasetName,
       status: latest.status,
       errorMessage: latest.status === 'failed' ? text(candidate.errorMessage) : '',
