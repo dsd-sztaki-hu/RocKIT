@@ -67,7 +67,7 @@
     "crosswalk-manager": "1.0.0"
   },
   "devDependencies": {
-    "@arpproject/recrate": "0.1.62",
+    "@arpproject/recrate": "0.1.63",
     "@theia/cli": "1.76.0",
     "allotment": "^1.20.5",
     "electron": "42.8.1"
