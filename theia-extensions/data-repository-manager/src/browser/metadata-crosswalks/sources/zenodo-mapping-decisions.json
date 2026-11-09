@@ -11,19 +11,7 @@
       "id": "zenodo.access_conditions",
       "direction": "both",
       "source": {
-        "canonicalCandidates": [
-          {
-            "entity": "root",
-            "entityClass": "Dataset",
-            "property": "https://dataverse.org/schema/citation/accessToSources",
-            "localName": "accessToSources",
-            "block": "citation",
-            "valueTypes": [
-              "TextArea"
-            ],
-            "multiple": false
-          }
-        ],
+        "canonicalCandidates": [],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -60,37 +48,16 @@
         }
       ],
       "onMissing": {
-        "action": "errorWhenConditionMatches",
-        "condition": {
-          "field": "access_right",
-          "equals": "restricted"
-        }
+        "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "unmappedReason": "Access policy is supplied on export and preserved on update."
     },
     {
       "id": "zenodo.access_right",
       "direction": "both",
       "source": {
-        "canonicalCandidates": [
-          {
-            "entity": "root",
-            "property": "https://schema.org/conditionsOfAccess",
-            "localName": "conditionsOfAccess",
-            "block": "canonical"
-          },
-          {
-            "entity": "root",
-            "entityClass": "Dataset",
-            "property": "https://dataverse.org/schema/citation/accessToSources",
-            "localName": "accessToSources",
-            "block": "citation",
-            "valueTypes": [
-              "TextArea"
-            ],
-            "multiple": false
-          }
-        ],
+        "canonicalCandidates": [],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -127,10 +94,10 @@
         }
       ],
       "onMissing": {
-        "action": "error",
-        "message": "Zenodo requires metadata.access_right."
+        "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "unmappedReason": "Access policy is supplied on export and preserved on update."
     },
     {
       "id": "zenodo.communities",
@@ -688,7 +655,13 @@
         "action": "error",
         "message": "Zenodo requires metadata.creators."
       },
-      "lossiness": "none expected, subject to nested vocabulary normalization"
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "property": "author",
+          "shape": "creators"
+        }
+      ]
     },
     {
       "id": "zenodo.description",
@@ -1085,7 +1058,22 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "property": "isbn",
+          "rootTypes": [
+            "Book"
+          ]
+        },
+        {
+          "property": "isbn",
+          "rootTypes": [
+            "Chapter"
+          ],
+          "containerType": "Book"
+        }
+      ]
     },
     {
       "id": "zenodo.imprint_place",
@@ -1161,7 +1149,25 @@
         "action": "omit"
       },
       "lossiness": "Imprint publisher is not exported without a verified semantic equivalent.",
-      "unmappedReason": "No verified canonical source identifies the publication imprint publisher; a dataset producer is not assumed to be its publisher."
+      "unmappedReason": "No verified canonical source identifies the publication imprint publisher; a dataset producer is not assumed to be its publisher.",
+      "schemaOrgSources": [
+        {
+          "property": "publisher",
+          "rootTypes": [
+            "Book",
+            "Report"
+          ],
+          "shape": "organizationName"
+        },
+        {
+          "property": "publisher",
+          "rootTypes": [
+            "Chapter"
+          ],
+          "containerType": "Book",
+          "shape": "organizationName"
+        }
+      ]
     },
     {
       "id": "zenodo.journal_issue",
@@ -1213,7 +1219,18 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "none expected, subject to nested vocabulary normalization"
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "property": "issueNumber",
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "containerType": "PublicationIssue",
+          "requiredContainerType": "Periodical"
+        }
+      ]
     },
     {
       "id": "zenodo.journal_pages",
@@ -1260,7 +1277,17 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "unmapped unless a repository-specific canonical property is present"
+      "lossiness": "unmapped unless a repository-specific canonical property is present",
+      "schemaOrgSources": [
+        {
+          "property": "pagination",
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "requiredContainerType": "Periodical"
+        }
+      ]
     },
     {
       "id": "zenodo.journal_title",
@@ -1318,7 +1345,17 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "property": "name",
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "containerType": "Periodical"
+        }
+      ]
     },
     {
       "id": "zenodo.journal_volume",
@@ -1370,7 +1407,18 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "none expected, subject to nested vocabulary normalization"
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "property": "volumeNumber",
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "containerType": "PublicationVolume",
+          "requiredContainerType": "Periodical"
+        }
+      ]
     },
     {
       "id": "zenodo.keywords",
@@ -1439,7 +1487,13 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "none expected, subject to nested vocabulary normalization"
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "property": "keywords",
+          "shape": "textList"
+        }
+      ]
     },
     {
       "id": "zenodo.language",
@@ -1702,7 +1756,16 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "unmapped unless a repository-specific canonical property is present"
+      "lossiness": "unmapped unless a repository-specific canonical property is present",
+      "schemaOrgSources": [
+        {
+          "property": "pagination",
+          "rootTypes": [
+            "Chapter"
+          ],
+          "requiredContainerType": "Book"
+        }
+      ]
     },
     {
       "id": "zenodo.partof_title",
@@ -1760,7 +1823,16 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "property": "name",
+          "rootTypes": [
+            "Chapter"
+          ],
+          "containerType": "Book"
+        }
+      ]
     },
     {
       "id": "zenodo.publication_date",
@@ -1882,7 +1954,35 @@
           "equals": "publication"
         }
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "rootTypes": [
+            "Book"
+          ],
+          "constant": "book"
+        },
+        {
+          "rootTypes": [
+            "Chapter"
+          ],
+          "constant": "section"
+        },
+        {
+          "rootTypes": [
+            "Report"
+          ],
+          "constant": "report"
+        },
+        {
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "requiredContainerType": "Periodical",
+          "constant": "article"
+        }
+      ]
     },
     {
       "id": "zenodo.references",
@@ -1970,7 +2070,13 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "none expected, subject to nested vocabulary normalization"
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "property": "citation",
+          "shape": "textList"
+        }
+      ]
     },
     {
       "id": "zenodo.related_identifiers",
@@ -2411,7 +2517,25 @@
         "action": "error",
         "message": "Zenodo requires metadata.upload_type."
       },
-      "lossiness": "none expected, subject to nested vocabulary normalization"
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "rootTypes": [
+            "Book",
+            "Chapter",
+            "Report"
+          ],
+          "constant": "publication"
+        },
+        {
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "requiredContainerType": "Periodical",
+          "constant": "publication"
+        }
+      ]
     },
     {
       "id": "zenodo.version",
@@ -2598,7 +2722,16 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "property": "spatialCoverage",
+          "rootTypes": [
+            "Dataset"
+          ],
+          "shape": "places"
+        }
+      ]
     },
     {
       "id": "zenodo.dates",
@@ -2694,47 +2827,7 @@
       "id": "zenodo.method",
       "direction": "both",
       "source": {
-        "canonicalCandidates": [
-          {
-            "entity": "root",
-            "property": "https://schema.org/measurementTechnique",
-            "localName": "measurementTechnique",
-            "block": "canonical"
-          },
-          {
-            "entity": "root",
-            "entityClass": "Dataset",
-            "property": "https://dataverse.org/schema/socialscience/samplingProcedure",
-            "localName": "samplingProcedure",
-            "block": "socialscience",
-            "valueTypes": [
-              "TextArea"
-            ],
-            "multiple": false
-          },
-          {
-            "entity": "root",
-            "entityClass": "Dataset",
-            "property": "https://dataverse.org/schema/socialscience/collectionMode",
-            "localName": "collectionMode",
-            "block": "socialscience",
-            "valueTypes": [
-              "TextArea"
-            ],
-            "multiple": true
-          },
-          {
-            "entity": "root",
-            "entityClass": "Dataset",
-            "property": "https://dataverse.org/schema/socialscience/researchInstrument",
-            "localName": "researchInstrument",
-            "block": "socialscience",
-            "valueTypes": [
-              "Text"
-            ],
-            "multiple": false
-          }
-        ],
+        "canonicalCandidates": [],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -2772,7 +2865,16 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "property": "measurementMethod",
+          "rootTypes": [
+            "Dataset"
+          ]
+        }
+      ],
+      "unmappedReason": "The browser crosswalk reads the Schema.org measurementMethod directly from the Dataset."
     }
   ]
 }

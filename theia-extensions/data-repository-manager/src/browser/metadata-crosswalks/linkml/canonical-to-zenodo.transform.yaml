@@ -17,10 +17,10 @@ class_derivations:
     populated_from: CanonicalMetadata
     slot_derivations:
       access_conditions:
-        populated_from: accessToSources
+        expr: None
         description: "needsReview: zenodo.access_conditions"
       access_right:
-        populated_from: conditionsOfAccess
+        expr: None
         description: "needsReview: zenodo.access_right"
       communities:
         expr: None
@@ -150,5 +150,5 @@ class_derivations:
         populated_from: dateOfCollection
         description: "mapped: zenodo.dates"
       method:
-        populated_from: measurementTechnique
+        expr: None
         description: "needsReview: zenodo.method"

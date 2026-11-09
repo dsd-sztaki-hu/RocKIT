@@ -32,10 +32,20 @@ interface MappingOperation extends JsonObject {
   operation: string
 }
 
+interface SchemaOrgSource {
+  property?: string
+  rootTypes?: string[]
+  containerType?: string
+  requiredContainerType?: string
+  shape?: 'textList' | 'creators' | 'places' | 'organizationName'
+  constant?: string
+}
+
 interface ZenodoMapping {
   id: string
   direction?: string
   mappingStatus: string
+  schemaOrgSources?: SchemaOrgSource[]
   source?: {
     canonicalCandidates?: SourceCandidate[]
     selection?: string
@@ -226,6 +236,237 @@ function resolveReferences(value: MappingValue, graph: JsonObject[]): MappingVal
   }
   const resolved = unique(values(value).map(resolve))
   return resolved.length ? resolved : EMPTY
+}
+
+const SCHEMA_IRI = /^https?:\/\/schema\.org\//
+// RO-Crate's versioned context lists terms explicitly and has no Schema.org default vocabulary.
+const CRATE_SCHEMA_TERMS = ['Dataset', 'Person', 'Organization', 'PropertyValue', 'author',
+  'name', 'description', 'affiliation', 'identifier', 'propertyID', 'value', 'keywords', 'citation',
+  'spatialCoverage', 'Place', 'City', 'State', 'Country', 'AdministrativeArea', 'isPartOf',
+  'Periodical', 'PublicationVolume', 'PublicationIssue', 'ScholarlyArticle', 'Article',
+  'volumeNumber', 'issueNumber', 'pagination', 'Chapter', 'Book', 'Report', 'isbn', 'publisher']
+
+function schemaTerm(term: string, context: unknown[]): string | undefined {
+  if (SCHEMA_IRI.test(term)) return term.replace(SCHEMA_IRI, '')
+  const entries = context.flatMap(values)
+  const definitions: JsonObject = Object.create(null) as JsonObject
+  for (const entry of entries) {
+    if (typeof entry === 'string' && /^https?:\/\/schema\.org\/?$/.test(entry)) {
+      definitions['@vocab'] = 'https://schema.org/'
+    } else if (typeof entry === 'string' && /^https?:\/\/w3id\.org\/ro\/crate\/1\.[12]\/context$/.test(entry)) {
+      for (const name of CRATE_SCHEMA_TERMS) definitions[name] = 'http://schema.org/' + name
+      if (entry.includes('/1.2/')) definitions.measurementMethod = 'http://schema.org/measurementMethod'
+    } else if (isObject(entry)) {
+      Object.assign(definitions, entry)
+    } else {
+      // An unknown remote context can redefine previously established terms.
+      for (const key of Object.keys(definitions)) delete definitions[key]
+    }
+  }
+  const definition = definitions[term]
+  const id = isObject(definition) ? definition['@id'] : definition
+  const mapped = typeof id === 'string' ? id : term
+  if (SCHEMA_IRI.test(mapped)) return mapped.replace(SCHEMA_IRI, '')
+  const colon = mapped.indexOf(':')
+  const prefix = definitions[mapped.slice(0, colon)]
+  const namespace = isObject(prefix) ? prefix['@id'] : prefix
+  const iri = colon > 0 && typeof namespace === 'string'
+    ? namespace + mapped.slice(colon + 1)
+    : colon < 0 && (typeof id === 'string' || !(term in definitions)) && typeof definitions['@vocab'] === 'string'
+      ? definitions['@vocab'] + mapped : undefined
+  return iri && SCHEMA_IRI.test(iri) ? iri.replace(SCHEMA_IRI, '') : undefined
+}
+
+function schemaKey(entity: JsonObject, term: string, context: unknown[]): string | undefined {
+  return Object.keys(entity).find((key) => schemaTerm(key, [...context, ...values(entity['@context']).filter(item => item !== undefined)]) === term)
+}
+
+function schemaValue(entity: JsonObject, term: string, context: unknown[]): unknown {
+  const key = schemaKey(entity, term, context)
+  return key === undefined ? undefined : entity[key]
+}
+
+function schemaTypes(entity: JsonObject, context: unknown[]): string[] {
+  const localContext = [...context, ...values(entity['@context']).filter(item => item !== undefined)]
+  return entityTypes(entity).flatMap((type) => schemaTerm(type, localContext) ?? [])
+}
+
+function schemaLinks(entity: JsonObject, term: string, graph: JsonObject[], context: unknown[]): JsonObject[] {
+  const links = values(schemaValue(entity, term, context)).filter(isObject)
+  return values(resolveReferences(links, graph)).filter(isObject)
+}
+
+function schemaOwner(source: SchemaOrgSource, root: JsonObject, graph: JsonObject[], context: unknown[]): JsonObject | undefined {
+  const { rootTypes, containerType, requiredContainerType } = source
+  if (rootTypes && !schemaTypes(root, context).some(type => rootTypes.includes(type))) return undefined
+  if (requiredContainerType && !schemaContainer(root, requiredContainerType, graph, context)) return undefined
+  return containerType ? schemaContainer(root, containerType, graph, context) : root
+}
+
+function schemaContainer(root: JsonObject, containerType: string, graph: JsonObject[], context: unknown[]): JsonObject | undefined {
+  const queue = schemaLinks(root, 'isPartOf', graph, context)
+  const seen = new Set<JsonObject>([root])
+  const matches: JsonObject[] = []
+  for (const entity of queue) {
+    if (seen.has(entity)) continue
+    seen.add(entity)
+    const types = schemaTypes(entity, context)
+    if (types.includes(containerType)) {
+      matches.push(entity)
+    } else if (types.some(type => ['PublicationIssue', 'PublicationVolume'].includes(type))) {
+      queue.push(...schemaLinks(entity, 'isPartOf', graph, context))
+    }
+  }
+  return matches.length === 1 ? matches[0] : undefined
+}
+
+function schemaText(value: unknown): string[] {
+  return strings(values(value).filter(item => typeof item === 'string'))
+}
+
+function schemaOrcid(entity: JsonObject, graph: JsonObject[], context: unknown[]): string | undefined {
+  const typedIds = schemaLinks(entity, 'identifier', graph, context)
+    .filter(item => schemaTypes(item, context).includes('PropertyValue') &&
+      schemaText(schemaValue(item, 'propertyID', context))[0]?.toLowerCase() === 'orcid')
+    .flatMap(item => schemaText(schemaValue(item, 'value', context)))
+  return typedIds
+    .map(item => item.replace(/^https?:\/\/orcid\.org\//i, ''))
+    .find(item => /^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/i.test(item))
+}
+
+function schemaCreator(entity: JsonObject, graph: JsonObject[], context: unknown[]): JsonObject {
+  const organization = schemaLinks(entity, 'affiliation', graph, context)
+    .find(item => schemaTypes(item, context).includes('Organization'))
+  return Object.fromEntries(Object.entries({
+    name: schemaText(entity.authorName)[0] ?? schemaText(schemaValue(entity, 'name', context))[0],
+    affiliation: schemaText(entity.authorAffiliation)[0] ??
+      (organization && schemaText(schemaValue(organization, 'name', context))[0]),
+    orcid: schemaText(entity.authorIdentifierScheme)[0]?.toLowerCase() === 'orcid'
+      ? schemaText(entity.authorIdentifier)[0] ?? schemaOrcid(entity, graph, context)
+      : schemaOrcid(entity, graph, context),
+  }).filter(([, value]) => hasMeaningfulValue(value)))
+}
+
+function schemaOrganization(owner: JsonObject, property: string, graph: JsonObject[], context: unknown[]): JsonObject | undefined {
+  const organizations = schemaLinks(owner, property, graph, context)
+    .filter(entity => schemaTypes(entity, context).includes('Organization'))
+  return organizations.length === 1 ? organizations[0] : undefined
+}
+
+function isSchemaCreator(entity: JsonObject, context: unknown[]): boolean {
+  return schemaTypes(entity, context).some(type => ['Person', 'Organization'].includes(type))
+}
+
+function isSchemaPlace(entity: JsonObject, context: unknown[]): boolean {
+  return schemaTypes(entity, context).some(type => ['Place', 'City', 'State', 'Country', 'AdministrativeArea'].includes(type))
+}
+
+function readSchemaOrgSource(source: SchemaOrgSource, owner: JsonObject, graph: JsonObject[], context: unknown[]): MappingValue {
+  if (source.constant !== undefined) return source.constant
+  if (!source.property) return EMPTY
+  if (source.shape === 'organizationName') {
+    const organization = schemaOrganization(owner, source.property, graph, context)
+    return organization ? schemaText(schemaValue(organization, 'name', context))[0] ?? EMPTY : EMPTY
+  }
+  if (source.shape === 'creators') {
+    const linked = schemaLinks(owner, source.property, graph, context)
+    if (!linked.some(entity => isSchemaCreator(entity, context))) return EMPTY
+    return linked
+      .filter(entity => isSchemaCreator(entity, context) ||
+        entityTypes(entity).includes('author'))
+      .map(entity => schemaCreator(entity, graph, context))
+      .filter(entity => !!entity.name)
+  }
+  if (source.shape === 'places') {
+    return schemaLinks(owner, source.property, graph, context)
+      .filter(entity => isSchemaPlace(entity, context))
+      .map(entity => {
+        const place = schemaText(schemaValue(entity, 'name', context))[0]
+        const description = schemaText(schemaValue(entity, 'description', context))[0]
+        return description ? { place, description } : { place }
+      })
+      .filter(entity => !!entity.place)
+  }
+  const text = schemaText(schemaValue(owner, source.property, context))
+  return source.shape === 'textList' ? text : text[0] ?? EMPTY
+}
+
+function selectedSchemaOrgSource(mapping: ZenodoMapping, root: JsonObject, graph: JsonObject[], context: unknown[]) {
+  for (const source of mapping.schemaOrgSources ?? []) {
+    const owner = schemaOwner(source, root, graph, context)
+    if (!owner) continue
+    const value = readSchemaOrgSource(source, owner, graph, context)
+    if (hasMeaningfulValue(value)) return { source, owner, value }
+  }
+  return undefined
+}
+
+function updateSchemaText(entity: JsonObject, term: string, value: unknown, context: unknown[]): boolean {
+  const key = schemaKey(entity, term, context)
+  const text = schemaText(value)
+  if (!key || !text.length) return false
+  entity[key] = Array.isArray(entity[key]) || text.length > 1 ? text : text[0]
+  return true
+}
+
+function updateSchemaOrgSource(
+  source: SchemaOrgSource,
+  owner: JsonObject,
+  graph: JsonObject[],
+  context: unknown[],
+  remoteValue: unknown,
+): boolean {
+  if (!source.property) return false
+  if (source.shape === 'organizationName') {
+    const organization = schemaOrganization(owner, source.property, graph, context)
+    return !!organization && updateSchemaText(organization, 'name', remoteValue, context)
+  }
+  if (source.shape !== 'creators' && source.shape !== 'places') {
+    return updateSchemaText(owner, source.property, remoteValue, context)
+  }
+
+  const linked = schemaLinks(owner, source.property, graph, context)
+  let updated = false
+  for (const row of values(remoteValue).filter(isObject)) {
+    if (source.shape === 'places') {
+      const place = schemaText(row.place)[0]
+      const matches = linked.filter(entity => isSchemaPlace(entity, context) &&
+        schemaText(schemaValue(entity, 'name', context))[0] === place)
+      if (place && matches.length === 1) {
+        updated = updateSchemaText(matches[0], 'description', row.description, context) || updated
+      }
+      continue
+    }
+    const name = schemaText(row.name)[0]
+    const orcid = schemaText(row.orcid)[0]?.replace(/^https?:\/\/orcid\.org\//i, '')
+    const matches = linked.filter(entity => {
+      if (!isSchemaCreator(entity, context) && !entityTypes(entity).includes('author')) return false
+      const creator = schemaCreator(entity, graph, context)
+      return orcid && creator.orcid ? creator.orcid === orcid : !!name && creator.name === name
+    })
+    if (matches.length !== 1) continue
+    const entity = matches[0]
+    if (entityTypes(entity).includes('author') && !isSchemaCreator(entity, context)) {
+      const [updatedName] = schemaText(row.name)
+      const [affiliation] = schemaText(row.affiliation)
+      if (updatedName && Object.prototype.hasOwnProperty.call(entity, 'authorName')) {
+        entity.authorName = updatedName
+        updated = true
+      }
+      if (affiliation && Object.prototype.hasOwnProperty.call(entity, 'authorAffiliation')) {
+        entity.authorAffiliation = affiliation
+        updated = true
+      }
+      continue
+    }
+    updated = updateSchemaText(entity, 'name', row.name, context) || updated
+    const organizations = schemaLinks(entity, 'affiliation', graph, context)
+      .filter(item => schemaTypes(item, context).includes('Organization'))
+    if (organizations.length === 1) {
+      updated = updateSchemaText(organizations[0], 'name', row.affiliation, context) || updated
+    }
+  }
+  return updated
 }
 
 function candidateValue(
@@ -1078,12 +1319,14 @@ export function buildZenodoMetadataFromCrosswalk(
   const metadata: Record<string, unknown> = {}
   const diagnostics: ZenodoMappingDiagnostic[] = []
   const mappings = activeCrosswalk.crosswalks.canonicalToZenodo.mappings
+  const context = crate['@context'] === undefined ? [] : [crate['@context']]
 
   for (const mapping of mappings) {
+    const schemaSource = selectedSchemaOrgSource(mapping, root, graph, context)
     const executable =
       mapping.mappingStatus === 'mapped' ||
       (mapping.mappingStatus === 'needsReview' && mapping.target.required)
-    if (!executable) {
+    if (!executable && !schemaSource) {
       diagnostics.push({
         mappingId: mapping.id,
         targetField: mapping.target.field,
@@ -1093,9 +1336,9 @@ export function buildZenodoMetadataFromCrosswalk(
       continue
     }
 
-    let value = selectSourceValue(mapping, root, graph)
+    let value = executable ? selectSourceValue(mapping, root, graph) : EMPTY
     let defaulted = false
-    for (const operation of mapping.transformations) {
+    for (const operation of executable ? mapping.transformations : []) {
       const before = value
       value = applyOperation(value, operation, graph)
       if (
@@ -1106,6 +1349,10 @@ export function buildZenodoMetadataFromCrosswalk(
       ) {
         defaulted = true
       }
+    }
+    if (schemaSource && (!hasMeaningfulValue(value) || defaulted || schemaSource.source.shape === 'creators')) {
+      value = schemaSource.value
+      defaulted = false
     }
     value = coerceTargetValue(mapping, value)
 
@@ -1154,13 +1401,15 @@ export function applyZenodoMetadataToRoCrate(
   }
 
   const updatedFields: string[] = []
+  const context = nextCrate['@context'] === undefined ? [] : [nextCrate['@context']]
   if (
     updateDescriptionEntities(root, graph, collectZenodoDescriptionTexts(zenodoMetadata))
   ) {
     updatedFields.push('description')
   }
   for (const mapping of activeCrosswalk.crosswalks.canonicalToZenodo.mappings) {
-    if (mapping.direction !== 'both' || mapping.mappingStatus === 'repositorySpecific') {
+    if (mapping.direction !== 'both' ||
+      (mapping.mappingStatus === 'repositorySpecific' && !mapping.schemaOrgSources?.length)) {
       continue
     }
     if (
@@ -1169,7 +1418,6 @@ export function applyZenodoMetadataToRoCrate(
         'access_conditions',
         'description',
         'embargo_date',
-        'imprint_publisher',
         'notes',
         'upload_type',
       ].includes(mapping.target.field)
@@ -1180,6 +1428,15 @@ export function applyZenodoMetadataToRoCrate(
     if (!hasMeaningfulValue(remoteValue)) {
       continue
     }
+    const schemaSource = selectedSchemaOrgSource(mapping, root, graph, context)
+    const nativeSource = mapping.mappingStatus === 'mapped' && hasMeaningfulValue(selectSourceValue(mapping, root, graph))
+    if (schemaSource && (!nativeSource || schemaSource.source.shape === 'creators')) {
+      if (updateSchemaOrgSource(schemaSource.source, schemaSource.owner, graph, context, remoteValue)) {
+        updatedFields.push(mapping.target.field)
+      }
+      continue
+    }
+    if (mapping.schemaOrgSources?.length && mapping.mappingStatus !== 'mapped') continue
     const candidate = firstWritableCandidate(mapping)
     if (!candidate) {
       continue
