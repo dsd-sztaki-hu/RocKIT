@@ -49,6 +49,35 @@ Its versioned inputs are:
 - `linkml/*.yaml`: source and target LinkML schemas plus the declarative
   canonical-to-Zenodo transformation.
 
+### Dataverse schema.org candidates
+
+`canonical-to-dataverse.json` records the reviewed schema.org equivalents
+alongside the existing native candidates. Its `schemaOrgReview` entries
+explain accepted relationships, exclusions, and supported value formats.
+Candidates are tried in order, with existing native values taking priority.
+The Dataverse runtime reads compact terms, `schema:` terms, and HTTP/HTTPS
+schema.org IRIs, and follows inline objects and graph references.
+
+Candidate `valueProperty` reads a scalar from a linked object, such as an
+affiliation's name. `literalField`
+places a scalar description or keyword into the named Dataverse compound
+child. `textOnly` limits keywords to plain text, excluding structured terms
+and URIs. Temporal-coverage conversions, journal publication-date inference,
+and coordinate conversions are excluded by user review.
+
+Reverse mapping updates the existing source representation when present.
+If the local crate has no corresponding source property, the first native
+candidate remains the default. These decisions apply to the Dataverse
+mapping section.
+
+Names are resolved within the author or contact relationship on the root
+Dataset. Unlinked entities are excluded even if their type or name matches.
+Conflicting values for a shared entity property stop reverse mapping.
+An explicit author/contact name takes priority over the generic display
+name. Reverse mapping preserves an existing display name even when the
+old strings were equal. Newly created native entities receive an initial
+display name.
+
 Create the Python environment once from the repository root:
 
 ```powershell

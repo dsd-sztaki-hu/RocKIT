@@ -81,6 +81,11 @@
               "Text"
             ],
             "multiple": false
+          },
+          {
+            "property": "https://schema.org/instrument",
+            "acquisitionActionType": "https://schema.org/PhotographAction",
+            "acquisitionResultType": "https://schema.org/3DModel"
           }
         ],
         "selection": "firstNonEmpty"
@@ -875,6 +880,11 @@
               "Text"
             ],
             "multiple": true
+          },
+          {
+            "property": "https://schema.org/location",
+            "acquisitionActionType": "https://schema.org/PhotographAction",
+            "acquisitionLocation": true
           }
         ],
         "selection": "firstNonEmpty"
@@ -929,6 +939,10 @@
               "Text"
             ],
             "multiple": true
+          },
+          {
+            "property": "https://schema.org/instrument",
+            "acquisitionActionType": "https://schema.org/PhotographAction"
           }
         ],
         "selection": "firstNonEmpty"
@@ -3293,6 +3307,14 @@
               "author"
             ],
             "multiple": true
+          },
+          {
+            "property": "https://schema.org/author",
+            "localName": "author"
+          },
+          {
+            "property": "https://schema.org/creator",
+            "localName": "creator"
           }
         ],
         "selection": "firstNonEmpty"
@@ -3342,6 +3364,10 @@
                 "Text"
               ],
               "multiple": false
+            },
+            {
+              "property": "https://schema.org/name",
+              "localName": "name"
             }
           ],
           "target": {
@@ -3388,6 +3414,11 @@
                 "Text"
               ],
               "multiple": false
+            },
+            {
+              "property": "https://schema.org/affiliation",
+              "localName": "affiliation",
+              "valueProperty": "https://schema.org/name"
             }
           ],
           "target": {
@@ -3523,7 +3554,11 @@
         "action": "error",
         "message": "Dataverse requires citation.author."
       },
-      "lossiness": "none expected"
+      "lossiness": "none expected",
+      "schemaOrgReview": {
+        "reviewedOn": "2026-11-05",
+        "rationale": "Dataverse defines the author as the person or organization that created the Dataset; schema.org explicitly equates creator and author for CreativeWork. https://schema.org/creator"
+      }
     },
     {
       "id": "dataverse.citation.datasetContact",
@@ -3588,6 +3623,10 @@
                 "Text"
               ],
               "multiple": false
+            },
+            {
+              "property": "https://schema.org/name",
+              "localName": "name"
             }
           ],
           "target": {
@@ -3719,7 +3758,11 @@
         "action": "error",
         "message": "Dataverse requires citation.datasetContact."
       },
-      "lossiness": "none expected"
+      "lossiness": "none expected",
+      "schemaOrgReview": {
+        "reviewedOn": "2026-11-05",
+        "rationale": "schema.org/name is a fallback only inside the datasetContact entity selected through the root Dataset contact relationship. The explicit datasetContactName remains authoritative."
+      }
     },
     {
       "id": "dataverse.citation.dsDescription",
@@ -3736,6 +3779,12 @@
               "dsDescription"
             ],
             "multiple": true
+          },
+          {
+            "property": "https://schema.org/description",
+            "localName": "description",
+            "literalField": "dsDescriptionValue",
+            "valueProperty": "https://schema.org/text"
           }
         ],
         "selection": "firstNonEmpty"
@@ -3868,7 +3917,11 @@
         "action": "error",
         "message": "Dataverse requires citation.dsDescription."
       },
-      "lossiness": "none expected"
+      "lossiness": "none expected",
+      "schemaOrgReview": {
+        "reviewedOn": "2026-11-05",
+        "rationale": "The description of the Dataset is the dataset summary. No description date is inferred. https://schema.org/description"
+      }
     },
     {
       "id": "dataverse.citation.subject",
@@ -3945,6 +3998,12 @@
               "keyword"
             ],
             "multiple": true
+          },
+          {
+            "property": "https://schema.org/keywords",
+            "localName": "keywords",
+            "literalField": "keywordValue",
+            "textOnly": true
           }
         ],
         "selection": "firstNonEmpty"
@@ -4179,7 +4238,11 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "none expected"
+      "lossiness": "none expected",
+      "schemaOrgReview": {
+        "reviewedOn": "2026-11-05",
+        "rationale": "Only plain schema.org keywords text is mapped to keywordValue. DefinedTerm, DefinedTermSet, URL and inferred vocabulary mappings are excluded by review."
+      }
     },
     {
       "id": "dataverse.citation.topicClassification",
@@ -4752,6 +4815,11 @@
               "Select"
             ],
             "multiple": true
+          },
+          {
+            "property": "https://schema.org/language",
+            "localName": "language",
+            "valueProperty": "https://schema.org/name"
           }
         ],
         "selection": "firstNonEmpty"
@@ -4794,7 +4862,11 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "possible when no target vocabulary term exists"
+      "lossiness": "possible when no target vocabulary term exists",
+      "schemaOrgReview": {
+        "reviewedOn": "2026-11-05",
+        "rationale": "The citation.language to schema.org/language pairing is explicitly approved by the user. schema.org/language is a superseded action property; this is a project mapping decision. schema.org/inLanguage is excluded by user review."
+      }
     },
     {
       "id": "dataverse.citation.producer",
@@ -8479,9 +8551,15 @@
     },
     {
       "id": "dataverse.geospatial.geographicDistribution",
-      "direction": "both",
+      "direction": "exportOnly",
       "source": {
-        "canonicalCandidates": [],
+        "canonicalCandidates": [
+          {
+            "property": "https://schema.org/distribution",
+            "expandedOnly": true,
+            "linkedEntityType": "https://schema.org/DataDownload"
+          }
+        ],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -8494,7 +8572,7 @@
         "required": false,
         "schemaPath": "/repositories/dataverse/blocks/geospatial/schema/fields/geographicDistribution"
       },
-      "mappingStatus": "targetOnlyUnmapped",
+      "mappingStatus": "needsReview",
       "transformations": [
         {
           "operation": "omitEmpty"
@@ -8517,7 +8595,12 @@
       "children": [
         {
           "id": "dataverse.geospatial.geographicDistribution.geographicDistributionLink",
-          "sourceCandidates": [],
+          "sourceCandidates": [
+            {
+              "property": "https://schema.org/contentUrl",
+              "expandedOnly": true
+            }
+          ],
           "target": {
             "field": "geographicDistributionLink",
             "type": "TEXT",
@@ -8526,7 +8609,7 @@
             "required": false,
             "schemaPath": "/repositories/dataverse/blocks/geospatial/schema/fields/geographicDistribution/childFields/geographicDistributionLink"
           },
-          "mappingStatus": "targetOnlyUnmapped",
+          "mappingStatus": "needsReview",
           "transformations": [
             {
               "operation": "omitEmpty"
@@ -8547,12 +8630,16 @@
           ],
           "onMissing": {
             "action": "omit"
-          },
-          "unmappedReason": "No corresponding field exists in the current ARP profile; no canonical property or IRI is inferred."
+          }
         },
         {
           "id": "dataverse.geospatial.geographicDistribution.geographicDistributionLinkLabel",
-          "sourceCandidates": [],
+          "sourceCandidates": [
+            {
+              "property": "https://schema.org/name",
+              "expandedOnly": true
+            }
+          ],
           "target": {
             "field": "geographicDistributionLinkLabel",
             "type": "TEXT",
@@ -8561,7 +8648,7 @@
             "required": false,
             "schemaPath": "/repositories/dataverse/blocks/geospatial/schema/fields/geographicDistribution/childFields/geographicDistributionLinkLabel"
           },
-          "mappingStatus": "targetOnlyUnmapped",
+          "mappingStatus": "needsReview",
           "transformations": [
             {
               "operation": "omitEmpty"
@@ -8582,8 +8669,7 @@
           ],
           "onMissing": {
             "action": "omit"
-          },
-          "unmappedReason": "No corresponding field exists in the current ARP profile; no canonical property or IRI is inferred."
+          }
         },
         {
           "id": "dataverse.geospatial.geographicDistribution.geographicProtocol",
@@ -8625,7 +8711,7 @@
         "action": "omit"
       },
       "lossiness": "none expected",
-      "unmappedReason": "No corresponding field exists in the current ARP profile; no canonical property or IRI is inferred."
+      "requiredExportChild": "geographicDistributionLink"
     },
     {
       "id": "dataverse.journal.journalVolumeIssue",
@@ -9166,6 +9252,11 @@
               "Text"
             ],
             "multiple": false
+          },
+          {
+            "property": "https://dataverse.org/schema/socialscience/frequencyOfDataCollection",
+            "valueEntityType": "https://schema.org/Schedule",
+            "valueProperty": "https://schema.org/repeatFrequency"
           }
         ],
         "selection": "firstNonEmpty"
@@ -9203,7 +9294,11 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "none expected"
+      "lossiness": "none expected",
+      "schemaOrgReview": {
+        "reviewedOn": "2026-11-09",
+        "rationale": "A Schedule explicitly linked through the Dataset frequencyOfDataCollection property represents its collection schedule. Read repeatFrequency from that Schedule and preserve the same entity on reverse mapping. The structured form requires expanded IRIs."
+      }
     },
     {
       "id": "dataverse.socialscience.samplingProcedure",
@@ -10249,5 +10344,207 @@
       },
       "lossiness": "none expected"
     }
-  ]
+  ],
+  "schemaOrgReview": {
+    "reviewedOn": "2026-11-05",
+    "criteria": "Add only close semantic equivalents of Dataverse fields. Existing native candidates retain priority. No ARP-only or Hungarian fields participate in these decisions.",
+    "excluded": [
+      {
+        "properties": [
+          "dateCreated",
+          "datePublished"
+        ],
+        "targets": [
+          "productionDate",
+          "distributionDate",
+          "dateOfDeposit"
+        ],
+        "reason": "Dataset creation/publication is not necessarily data production, distribution or repository deposit."
+      },
+      {
+        "properties": [
+          "publisher",
+          "producer"
+        ],
+        "targets": [
+          "distributor",
+          "producer"
+        ],
+        "reason": "Publication responsibility and media production do not establish the Dataverse roles of generating copies or managing finances/administration."
+      },
+      {
+        "properties": [
+          "identifier"
+        ],
+        "targets": [
+          "otherId"
+        ],
+        "reason": "A generic identifier can be the primary identifier; Dataverse specifically requests another identifier and its agency."
+      },
+      {
+        "properties": [
+          "url"
+        ],
+        "targets": [
+          "alternativeURL"
+        ],
+        "reason": "The primary URL is not necessarily another location providing access to the dataset."
+      },
+      {
+        "properties": [
+          "citation"
+        ],
+        "targets": [
+          "publication"
+        ],
+        "reason": "A cited resource need not be a publication that uses the dataset."
+      },
+      {
+        "properties": [
+          "about"
+        ],
+        "targets": [
+          "subject",
+          "topicClassification"
+        ],
+        "reason": "An arbitrary Thing, person or place is not necessarily a disciplinary subject or a classification term in the target vocabulary."
+      },
+      {
+        "properties": [
+          "givenName",
+          "familyName"
+        ],
+        "targets": [
+          "authorName"
+        ],
+        "reason": "Name parts are not independently equivalent to the complete author name; no name order is inferred."
+      },
+      {
+        "properties": [
+          "locationCreated",
+          "contentLocation"
+        ],
+        "targets": [
+          "geographicCoverage",
+          "geographicBoundingBox"
+        ],
+        "reason": "Creation location and generic content location do not establish the geographic extent represented by the data. Only spatialCoverage with an explicit box is converted in this pass."
+      },
+      {
+        "properties": [
+          "spatialCoverage.name",
+          "spatialCoverage.geo.latitude",
+          "spatialCoverage.geo.longitude"
+        ],
+        "targets": [
+          "country",
+          "state",
+          "city",
+          "geographicBoundingBox"
+        ],
+        "reason": "A place name does not identify its administrative level, and a point is not a bounding box."
+      },
+      {
+        "properties": [
+          "measurementTechnique"
+        ],
+        "targets": [
+          "collectionMode",
+          "studyAssayTechnologyType"
+        ],
+        "reason": "A generic measurement method does not establish the specific collection mode or assay technology semantics and vocabulary."
+      },
+      {
+        "properties": [
+          "name"
+        ],
+        "targets": [
+          "title"
+        ],
+        "reason": "Rejected by user review. The generic Dataset name is distinct from the citation title."
+      },
+      {
+        "properties": [
+          "alternateName"
+        ],
+        "targets": [
+          "alternativeTitle"
+        ],
+        "reason": "Rejected by user review. An alias is distinct from an alternative citation title."
+      },
+      {
+        "properties": [
+          "DefinedTerm",
+          "DefinedTermSet",
+          "url"
+        ],
+        "targets": [
+          "keywordValue",
+          "keywordTermURI",
+          "keywordVocabulary",
+          "keywordVocabularyURI"
+        ],
+        "reason": "Rejected by user review. No structured-term, term-set or URL equivalence is enabled."
+      },
+      {
+        "properties": [
+          "inLanguage"
+        ],
+        "targets": [
+          "language"
+        ],
+        "reason": "Rejected by user review. The approved project pairing uses schema.org/language instead."
+      },
+      {
+        "properties": [
+          "temporalCoverage"
+        ],
+        "targets": [
+          "timePeriodCoveredStart",
+          "timePeriodCoveredEnd"
+        ],
+        "reason": "Explicitly rejected by user review. Do not convert schema.org temporal coverage values into the native Time Period child dates."
+      },
+      {
+        "properties": [
+          "datePublished"
+        ],
+        "targets": [
+          "journalPubDate"
+        ],
+        "reason": "Explicitly rejected by user review. Do not infer the associated journal volume/issue publication date from schema.org publication dates."
+      },
+      {
+        "properties": [
+          "geo",
+          "spatialCoverage",
+          "latitude",
+          "longitude",
+          "box"
+        ],
+        "targets": [
+          "geographicBoundingBox",
+          "westLongitude",
+          "eastLongitude",
+          "northLatitude",
+          "southLatitude"
+        ],
+        "reason": "All proposed schema.org coordinate conversions are excluded by user review."
+      },
+      {
+        "properties": [
+          "StatisticalPopulation.description"
+        ],
+        "targets": [
+          "universe"
+        ],
+        "reason": "Excluded by user review."
+      }
+    ],
+    "supportedRepresentations": {
+      "names": "schema.org/name is scoped to authorName or datasetContactName through the parent role and entity reference. It is never mapped to the root Dataset title.",
+      "keywords": "Plain text keywords only. Structured terms and URLs are excluded.",
+      "language": "Native language vocabulary labels and schema.org/language labels or referenced Language.name. Target vocabulary validation is retained."
+    }
+  }
 }
