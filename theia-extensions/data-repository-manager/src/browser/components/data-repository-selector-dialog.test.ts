@@ -29,7 +29,6 @@ const renderDialog = (repositories: DataRepositoryConfig[]) => {
       getProviderForRepository: jest.fn(),
       supports: jest.fn(() => false),
     } as any,
-    { list: jest.fn(async () => []) } as any,
   ) as any
 
   act(() => dialog.render())
@@ -39,6 +38,32 @@ const renderDialog = (repositories: DataRepositoryConfig[]) => {
 describe('DataRepositorySelectorDialog', () => {
   afterEach(() => {
     document.body.innerHTML = ''
+  })
+
+  it('opens export editing from its pen button without selecting an operation', async () => {
+    const repo = repository('arp')
+    const target = {
+      pid: 'doi:example', target: 'https://repository.example.org/dataset/1',
+      repository: repo.baseUrl, mappingFile: 'mapping.json', datasetName: 'Example export',
+      syncType: 'create' as const,
+    }
+    const onEdit = jest.fn(async () => true)
+    const dialog = new DataRepositorySelectorDialog(
+      [repo],
+      { onDidChange: jest.fn(() => ({ dispose: jest.fn() })) } as any,
+      { getProviderForRepository: jest.fn(), supports: jest.fn(() => false) } as any,
+      true, { [repo.id]: [target] }, undefined, undefined, onEdit,
+    ) as any
+    const accept = jest.spyOn(dialog, 'accept')
+    act(() => dialog.render())
+    const pen = dialog.contentNode.querySelector('[aria-label="Edit export Example export"]')
+    expect(pen).not.toBeNull()
+    expect(pen.parentElement.querySelector('.data-repo-selector__export-title')?.textContent)
+      .toBe('Example export')
+    await act(async () => pen.click())
+    expect(onEdit).toHaveBeenCalledWith(repo, target)
+    expect(accept).not.toHaveBeenCalled()
+    act(() => dialog.reactRoot.unmount())
   })
 
   it('warns when a legacy repository has no repository type', () => {

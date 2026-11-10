@@ -292,6 +292,7 @@ interface PreparedDataverseUpdateExport {
 interface ActiveDataverseProviderCreate {
   rootUri: URI
   repository: DataRepositoryConfig
+  crosswalkId?: string
   collectionId: string
   plan: PreparedDataverseCreateExport
   mappingFileName: string
@@ -340,7 +341,6 @@ export type NativeDataverseExportProgressReporter = (
 ) => void
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
-const DATAVERSE_CROSSWALK_FILE_NAME = 'arp-dataverse-crosswalk.json'
 const FILE_HASH_CONTEXT = 'https://dataverse.org/schema/file/hash'
 
 @injectable()
@@ -374,6 +374,7 @@ export class NativeDataverseExportService {
     repository: DataRepositoryConfig,
     persistentId: string,
     importedDatasetVersionData: Record<string, unknown>,
+    crosswalkId?: string,
   ): Promise<NativeDataverseImportedLinkResult> {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const datasetVersionData = importedDatasetVersionData
@@ -382,7 +383,7 @@ export class NativeDataverseExportService {
       ? await this.readRoCrate(metadataUri)
       : undefined
     const selectedCrosswalk = crate
-      ? await this.readSelectedCrosswalk(repository)
+      ? await this.readSelectedCrosswalk(crosswalkId)
       : undefined
     if (crate && selectedCrosswalk) {
       crate = this.metadataMappingService.applyMetadataBlocksToRoCrate(
@@ -450,7 +451,7 @@ export class NativeDataverseExportService {
       target,
       repository: baseUrl,
       mappingFile: mappingFileName,
-      crosswalkFile: repository.crosswalkId ?? DATAVERSE_CROSSWALK_FILE_NAME,
+      crosswalkFile: crosswalkId,
       syncType: 'update',
       status: 'success',
       lastSuccessfulActionAt: new Date().toISOString(),
@@ -472,11 +473,12 @@ export class NativeDataverseExportService {
       plan: PreparedDataverseCreateExport
       operationId: string
     }) => Promise<DataverseProviderCreateResult>,
+    crosswalkId?: string,
   ): Promise<NativeDataverseDatasetCreationResult> {
     const rootUri = this.getWorkspaceRoot()
     const collectionId = collection.alias || collection.id
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const selectedCrosswalk = await this.readSelectedCrosswalk(repository)
+    const selectedCrosswalk = await this.readSelectedCrosswalk(crosswalkId)
     const datasetCreationPayload = await this.buildDatasetCreationPayload(
       datasetMetadata,
       crate,
@@ -510,6 +512,7 @@ export class NativeDataverseExportService {
     const active: ActiveDataverseProviderCreate = {
       rootUri,
       repository,
+      crosswalkId,
       collectionId,
       plan,
       mappingFileName,
@@ -592,7 +595,7 @@ export class NativeDataverseExportService {
         target,
         repository: baseUrl,
         mappingFile: mappingFileName,
-        crosswalkFile: repository.crosswalkId ?? DATAVERSE_CROSSWALK_FILE_NAME,
+        crosswalkFile: crosswalkId,
         syncType: 'create',
         status: 'success',
         lastSuccessfulActionAt: new Date().toISOString(),
@@ -633,7 +636,7 @@ export class NativeDataverseExportService {
           target: active.target,
           repository: this.normalizeBaseUrl(repository.baseUrl),
           mappingFile: mappingFileName,
-          crosswalkFile: repository.crosswalkId ?? DATAVERSE_CROSSWALK_FILE_NAME,
+          crosswalkFile: crosswalkId,
           syncType: 'create',
           status: 'failed',
           errorMessage: error instanceof Error ? error.message : String(error),
@@ -683,8 +686,7 @@ export class NativeDataverseExportService {
         target: active.target,
         repository: baseUrl,
         mappingFile: active.mappingFileName,
-        crosswalkFile:
-          active.repository.crosswalkId ?? DATAVERSE_CROSSWALK_FILE_NAME,
+        crosswalkFile: active.crosswalkId,
         syncType: 'create',
         status: 'cancelled',
         datasetName: this.getRootDatasetName(active.plan.crate),
@@ -751,6 +753,8 @@ export class NativeDataverseExportService {
     const exportTarget = await this.resolveExistingExportTarget(
       rootUri, repository, exportTargetSelection)
     if (!exportTarget) return undefined
+    const crosswalkId = exportTarget.exportLogEntry.crosswalkFile ??
+      exportTargetSelection.crosswalkFile
 
     const rawInspection = await invokeProvider({
       phase: 'inspect', repository, persistentId: exportTarget.persistentId,
@@ -835,7 +839,7 @@ export class NativeDataverseExportService {
     }
     const enabledMetadataBlocks = this.datasetVersionMetadataBlockAliases(
       inspection.datasetVersionData)
-    const selectedCrosswalk = await this.readSelectedCrosswalk(repository)
+    const selectedCrosswalk = await this.readSelectedCrosswalk(crosswalkId)
     const nativeMetadataPayload = await this.buildDatasetNativeMetadataUpdatePayload(
       inspection.datasetVersionData,
       crate,
@@ -875,7 +879,7 @@ export class NativeDataverseExportService {
       target,
       repository: baseUrl,
       mappingFile: plan.mappingFileName,
-      crosswalkFile: repository.crosswalkId,
+      crosswalkFile: crosswalkId,
       syncType: 'update',
       status: 'cancelled',
       collectionId: exportTarget.exportLogEntry.collectionId,
@@ -932,7 +936,7 @@ export class NativeDataverseExportService {
         target,
         repository: baseUrl,
         mappingFile: plan.mappingFileName,
-        crosswalkFile: repository.crosswalkId,
+        crosswalkFile: crosswalkId,
         syncType: 'update',
         status: 'success',
         lastSuccessfulActionAt: new Date().toISOString(),
@@ -952,7 +956,7 @@ export class NativeDataverseExportService {
         target,
         repository: baseUrl,
         mappingFile: plan.mappingFileName,
-        crosswalkFile: repository.crosswalkId,
+        crosswalkFile: crosswalkId,
         syncType: 'update',
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : String(error),
@@ -1037,6 +1041,8 @@ export class NativeDataverseExportService {
     const exportTarget = await this.resolveExistingExportTarget(
       rootUri, repository, exportTargetSelection)
     if (!exportTarget) return undefined
+    const crosswalkId = exportTarget.exportLogEntry.crosswalkFile ??
+      exportTargetSelection.crosswalkFile
 
     const rawInspection = await invokeProvider({
       phase: 'inspect', repository, persistentId: exportTarget.persistentId,
@@ -1148,7 +1154,7 @@ export class NativeDataverseExportService {
     await this.appendExportLog(rootUri, {
       ...exportTarget.exportLogEntry,
       target,
-      crosswalkFile: repository.crosswalkId,
+      crosswalkFile: crosswalkId,
       syncType: 'sync',
       status: 'cancelled',
     })
@@ -1179,7 +1185,7 @@ export class NativeDataverseExportService {
         inspection.remoteMetadataCrate,
         this.invertEntityIdMapping(exportTarget.mapping),
       )
-      const selectedCrosswalk = await this.readSelectedCrosswalk(repository)
+      const selectedCrosswalk = await this.readSelectedCrosswalk(crosswalkId)
       const mappedRemoteResult = selectedCrosswalk
         ? this.metadataMappingService.applyMetadataBlocksToRoCrate(
             localizedRemoteCrate, inspection.datasetVersionData, selectedCrosswalk)
@@ -1199,7 +1205,7 @@ export class NativeDataverseExportService {
         target,
         repository: baseUrl,
         mappingFile: exportTarget.exportLogEntry.mappingFile,
-        crosswalkFile: repository.crosswalkId,
+        crosswalkFile: crosswalkId,
         syncType: 'sync',
         status: 'success',
         lastSuccessfulActionAt: new Date().toISOString(),
@@ -1221,7 +1227,7 @@ export class NativeDataverseExportService {
         target,
         repository: baseUrl,
         mappingFile: exportTarget.exportLogEntry.mappingFile,
-        crosswalkFile: repository.crosswalkId,
+        crosswalkFile: crosswalkId,
         syncType: 'sync',
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : String(error),
@@ -1270,14 +1276,14 @@ export class NativeDataverseExportService {
   }
 
   public async getDatasetCreationMetadataDefaults(
-    repository?: DataRepositoryConfig,
+    crosswalkId?: string,
   ): Promise<NativeDataverseDatasetMetadata> {
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const selectedCrosswalk = repository
-      ? await this.readSelectedCrosswalk(repository)
+    const selectedCrosswalk = crosswalkId
+      ? await this.readSelectedCrosswalk(crosswalkId)
       : undefined
-    if (repository && !selectedCrosswalk) {
+    if (crosswalkId && !selectedCrosswalk) {
       return {
         title: '',
         authorNames: [],
@@ -1587,14 +1593,14 @@ export class NativeDataverseExportService {
   }
 
   protected async readSelectedCrosswalk(
-    repository: DataRepositoryConfig,
+    crosswalkId?: string,
   ): Promise<CrosswalkDocument | null> {
-    if (!repository.crosswalkId) {
+    if (!crosswalkId) {
       return null
     }
-    const selected = await this.crosswalkRegistry.read(repository.crosswalkId)
+    const selected = await this.crosswalkRegistry.read(crosswalkId)
     if (!selected) {
-      throw new Error(`The selected crosswalk '${repository.crosswalkId}' is no longer registered.`)
+      throw new Error(`The selected crosswalk '${crosswalkId}' is no longer registered.`)
     }
     return selected
   }

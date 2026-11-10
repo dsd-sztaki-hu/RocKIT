@@ -33,6 +33,7 @@ function fixture() {
   const exportLogEntry: ExportLogEntry = {
     target: `https://repo.example.org/dataset.xhtml?persistentId=${pid}`,
     repository: 'https://repo.example.org', mappingFile: 'mapping.json',
+    crosswalkFile: 'crosswalk-id',
     syncType: 'update', status: 'success',
   }
   const plan: PreparedArpSyncExport = {
@@ -69,6 +70,7 @@ function fixture() {
     { recordKnownHash } as never,
     {} as never,
     {} as never,
+    {} as never,
   )
   Object.assign(service, {
     getWorkspaceRoot: () => root,
@@ -78,11 +80,11 @@ function fixture() {
   })
   const repository = {
     id: 'arp', title: 'ARP', baseUrl: 'https://repo.example.org',
-    apiKey: 'secret', providerId: 'arp', crosswalkId: 'crosswalk-id',
+    apiKey: 'secret', providerId: 'arp',
   }
   const target = {
     pid, target: plan.target, repository: repository.baseUrl,
-    mappingFile: plan.mappingFileName, syncType: 'update' as const,
+    mappingFile: plan.mappingFileName, crosswalkFile: 'crosswalk-id', syncType: 'update' as const,
   }
   return {
     service, repository, target, plan, remoteCrate,

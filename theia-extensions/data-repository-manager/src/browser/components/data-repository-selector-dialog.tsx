@@ -32,7 +32,6 @@ import { nls } from '@theia/core/lib/common/nls';
 import { ExportDeleteAction } from './data-repository-export-delete-dialog';
 import { RepositoryOperation } from '../repository-provider-registry';
 import { RepositoryProviderService } from '../repository-provider-service';
-import type { CrosswalkRegistry } from 'crosswalk-manager/lib/browser/crosswalk-registry';
 
 export type DeleteExportTargetHandler = (
     repository: DataRepositoryConfig,
@@ -53,11 +52,14 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         private repositories: DataRepositoryConfig[],
         private readonly storeService: DataRepositoryStoreService,
         private readonly providerService: RepositoryProviderService,
-        private readonly crosswalkRegistryService: CrosswalkRegistry,
         private readonly hasWorkspace: boolean = true,
         private readonly exportTargetsByRepositoryId: Record<string, DataRepositoryExportTarget[]> = {},
         private readonly onShowRecentValidationResponse?: () => void,
-        private readonly onDeleteExportTarget?: DeleteExportTargetHandler
+        private readonly onDeleteExportTarget?: DeleteExportTargetHandler,
+        private readonly onEditExportTarget?: (
+            repository: DataRepositoryConfig,
+            target: DataRepositoryExportTarget
+        ) => Promise<boolean>
     ) {
         super({
             title: nls.localize('rockit/dataRepository/selectRepository', 'Select Data Repository')
@@ -126,8 +128,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         const dialog = new DataRepositoryConfigDialog(
             undefined,
             this.providerService.listProviders(),
-            this.providerService,
-            await this.crosswalkRegistryService.list()
+            this.providerService
         );
         const result = await dialog.open();
         if (result) {
@@ -139,8 +140,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         const dialog = new DataRepositoryConfigDialog(
             repo,
             this.providerService.listProviders(),
-            this.providerService,
-            await this.crosswalkRegistryService.list()
+            this.providerService
         );
         const result = await dialog.open();
         if (result) {
@@ -157,6 +157,12 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
             ),
         });
         void dialog.open();
+    }
+
+    protected async handleEditExport(repo: DataRepositoryConfig, target: DataRepositoryExportTarget): Promise<void> {
+        if (await this.onEditExportTarget?.(repo, target)) {
+            this.render();
+        }
     }
 
     protected async handleDeleteExport(
@@ -365,8 +371,25 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                     <DatasetIcon className="data-repo-selector__export-icon" />
                                 </div>
                                 <div className="data-repo-selector__export-details">
-                                    <div className="data-repo-selector__export-title">
-                                        {target.datasetName || target.pid}
+                                    <div className="data-repo-selector__item-title-row">
+                                        <div className="data-repo-selector__export-title">
+                                            {target.datasetName || target.pid}
+                                        </div>
+                                        {this.onEditExportTarget && <button
+                                            className="data-repo-selector__edit-repository"
+                                            title={nls.localize('rockit/dataRepository/editExport', 'Edit export')}
+                                            aria-label={nls.localize(
+                                                'rockit/dataRepository/editExportNamed',
+                                                'Edit export {0}',
+                                                target.datasetName || target.pid
+                                            )}
+                                            onClick={event => {
+                                                event.stopPropagation();
+                                                void this.handleEditExport(repo, target);
+                                            }}
+                                        >
+                                            <EditIcon />
+                                        </button>}
                                     </div>
                                     <a
                                         className="data-repo-selector__export-url"

@@ -96,10 +96,12 @@ describe('RepositoryProviderService', () => {
       title: 'My Test Repository',
       baseUrl: 'https://example.invalid',
       providerId: 'test-repository',
-      crosswalkId: 'test-crosswalk',
     }
 
-    await service.executeForRepository(repository, 'create', { repository })
+    await service.executeForRepository(repository, 'create', {
+      repository,
+      crosswalkId: 'test-crosswalk',
+    })
 
     expect(readCrosswalk).toHaveBeenCalledWith('test-crosswalk')
     expect(executeCommand).toHaveBeenCalledWith('rockit.testRepository.create', {
@@ -175,7 +177,10 @@ describe('RepositoryProviderService', () => {
     const crosswalkService = {
       prepareRepositoryMetadata: jest.fn(async () => {
         calls.push('map')
-        return { title: 'Mapped title', creators: [{ name: 'Alice' }] }
+        return {
+          crosswalkId: 'example',
+          metadata: { title: 'Mapped title', creators: [{ name: 'Alice' }] },
+        }
       }),
     }
     const fileService = {
@@ -185,17 +190,25 @@ describe('RepositoryProviderService', () => {
     const service = new RepositoryProviderService(
       registry,
       { executeCommand } as unknown as CommandService,
-      { read: async () => ({ id: 'example' }) } as unknown as CrosswalkRegistry,
+      {
+        read: async () => ({ id: 'example' }),
+        list: async () => [{
+          id: 'example', name: 'Example', fileName: 'example.json',
+          sourceFileName: 'example.json', repositories: ['zenodo'],
+        }],
+      } as unknown as CrosswalkRegistry,
       crosswalkService as unknown as RepositoryCrosswalkService,
       fileService as unknown as FileService,
       workspaceService as unknown as WorkspaceService,
     )
     const repository = {
       id: 'zenodo-connection', title: 'Zenodo', baseUrl: 'https://zenodo.org',
-      providerId: 'zenodo', crosswalkId: 'example',
+      providerId: 'zenodo',
     }
 
-    await service.executeForRepository(repository, 'create', { repository })
+    await service.executeForRepository(repository, 'create', {
+      repository, crosswalkId: 'example',
+    })
 
     expect(calls).toEqual(['map', 'provider'])
     expect(executeCommand).toHaveBeenCalledWith('rockit.zenodo.create', {
@@ -217,7 +230,7 @@ describe('RepositoryProviderService', () => {
     const service = new RepositoryProviderService(
       registry,
       { executeCommand } as unknown as CommandService,
-      { read: jest.fn() } as unknown as CrosswalkRegistry,
+      { read: jest.fn(), list: async () => [] } as unknown as CrosswalkRegistry,
       crosswalkService as unknown as RepositoryCrosswalkService,
       { readFile: async () => ({ value: { toString: () => JSON.stringify(crate) } }) } as unknown as FileService,
       { tryGetRoots: () => [{ resource: new URI('file:///workspace') }] } as unknown as WorkspaceService,
@@ -275,10 +288,12 @@ describe('RepositoryProviderService', () => {
     )
     const repository = {
       id: 'zenodo-connection', title: 'Zenodo', baseUrl: 'https://zenodo.org',
-      providerId: 'zenodo', crosswalkId: 'example',
+      providerId: 'zenodo',
     }
 
-    const result = await service.executeForRepository(repository, 'import', { repository })
+    const result = await service.executeForRepository(repository, 'import', {
+      repository, crosswalkId: 'example',
+    })
 
     expect(calls).toEqual(['provider', 'map', 'write', 'write', 'open'])
     expect(result).toMatchObject({ openedWorkspace: true, remoteId: '42' })
@@ -351,10 +366,12 @@ describe('RepositoryProviderService', () => {
     )
     const repository = {
       id: 'zenodo-connection', title: 'Zenodo', baseUrl: 'https://zenodo.org',
-      providerId: 'zenodo', crosswalkId: 'example',
+      providerId: 'zenodo',
     }
 
-    const result = await service.executeForRepository(repository, 'sync', { repository })
+    const result = await service.executeForRepository(repository, 'sync', {
+      repository, crosswalkId: 'example',
+    })
 
     expect(crosswalkService.applyRepositoryMetadata).toHaveBeenCalledWith({
       repositoryType: 'zenodo', crosswalkId: 'example', crate: remoteCrate,

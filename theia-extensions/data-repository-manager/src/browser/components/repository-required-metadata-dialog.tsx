@@ -77,7 +77,12 @@ export class RepositoryRequiredMetadataDialog extends AbstractDialog<
     return <React.Fragment key={field.id}>
       <label className='native-dv-metadata__field'>
         <span className='native-dv-metadata__label'>
-          {field.label}{field.required
+          {field.label}{field.helpText ? <span
+            className='native-dv-metadata__help'
+            title={field.helpText}
+            aria-label={field.helpText}
+            tabIndex={0}
+          >?</span> : undefined}{field.required
             ? <span className='native-dv-metadata__required'> *</span>
             : undefined}
         </span>
@@ -132,6 +137,7 @@ export class RepositoryRequiredMetadataDialog extends AbstractDialog<
       if (!/^[a-zA-Z][a-zA-Z0-9_.-]*$/.test(field.id) || ids.has(field.id) ||
           !field.label?.trim() || !['text', 'date', 'textarea', 'select'].includes(field.type) ||
           (field.defaultValue !== undefined && typeof field.defaultValue !== 'string') ||
+          (field.helpText !== undefined && typeof field.helpText !== 'string') ||
           (field.type === 'select' && (!Array.isArray(field.options) ||
             !field.options.every(option => typeof option?.value === 'string' &&
               typeof option?.label === 'string'))) ||

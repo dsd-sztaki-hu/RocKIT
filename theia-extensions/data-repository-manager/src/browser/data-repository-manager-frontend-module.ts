@@ -22,6 +22,7 @@ import { NativeDataverseExportService } from './services/native-dataverse-export
 import { NativeDataverseImportService } from './services/native-dataverse-import-service'
 import { FileHashStoreService } from './services/file-hash-store-service'
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service'
+import { DataRepositoryExportRecordService } from './services/data-repository-export-record-service'
 import { DataverseMetadataMappingService } from './services/dataverse-metadata-mapping-service'
 import { RepositoryProviderRegistry } from './repository-provider-registry'
 import { RepositoryProviderService } from './repository-provider-service'
@@ -44,6 +45,7 @@ export default new ContainerModule((bind) => {
   bind(NativeDataverseImportService).toSelf().inSingletonScope()
   bind(FileHashStoreService).toSelf().inSingletonScope()
   bind(DataRepositoryExportDeleteService).toSelf().inSingletonScope()
+  bind(DataRepositoryExportRecordService).toSelf().inSingletonScope()
   bind(DataverseMetadataMappingService).toSelf().inSingletonScope()
   bind(RepositoryProviderRegistry).toSelf().inSingletonScope()
   bind(RepositoryProviderService).toSelf().inSingletonScope()

@@ -84,7 +84,7 @@ class ArpLinkOperation {
       target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: mappingFileName,
-      crosswalkFile: repository.crosswalkId,
+      crosswalkFile: input.crosswalkId,
       syncType: 'update',
       status: 'success',
       lastSuccessfulActionAt: this.now().toISOString(),

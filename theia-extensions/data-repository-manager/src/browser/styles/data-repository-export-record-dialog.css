@@ -1,0 +1,23 @@
+.export-record__details {
+    display: grid;
+    grid-template-columns: minmax(100px, 0.4fr) minmax(0, 1fr);
+    gap: 6px 12px;
+    max-height: 42vh;
+    margin: 4px 0 0;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.export-record__details dt {
+    color: var(--theia-descriptionForeground);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.export-record__details dd {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+}

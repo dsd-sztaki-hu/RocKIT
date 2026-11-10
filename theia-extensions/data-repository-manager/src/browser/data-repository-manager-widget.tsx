@@ -37,14 +37,17 @@ import {
   ExportDeleteAction,
 } from './components/data-repository-export-delete-dialog'
 import { DataRepositorySelectorDialog } from './components/data-repository-selector-dialog'
+import { DataRepositoryExportRecordDialog } from './components/data-repository-export-record-dialog'
 import { DataRepositoryTable } from './components/data-repository-table'
 import { DataRepositoryToolbar } from './components/data-repository-toolbar'
 import { DataverseCollectionBrowserDialog } from './components/dataverse-collection-browser-dialog'
 import { NativeDataverseDatasetMetadataDialog } from './components/native-dataverse-dataset-metadata-dialog'
 import { RepositorySyncOptionsDialog } from './components/repository-sync-options-dialog'
+import { RepositoryRequiredMetadataDialog } from './components/repository-required-metadata-dialog'
 import { RepositoryOperation } from './repository-provider-registry'
 import { RepositoryProviderService } from './repository-provider-service'
 import { CrosswalkRegistry } from 'crosswalk-manager/lib/browser/crosswalk-registry'
+import type { CrosswalkRegistryEntry } from 'crosswalk-manager/lib/browser/crosswalk-manager-types'
 import {
   ArpRoCrateExportService,
   ArpRoCrateValidationError,
@@ -60,6 +63,7 @@ import {
   DataverseProviderLinkSnapshot,
 } from './services/arp-ro-crate-link-service'
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service'
+import { DataRepositoryExportRecordService } from './services/data-repository-export-record-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
 import {
   DataverseProviderCreateResult,
@@ -93,6 +97,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   protected selectedKeys: React.Key[] = []
   protected recentArpValidationError: ArpRoCrateValidationError | undefined
   protected readonly disposables = new DisposableCollection()
+
+  @inject(DataRepositoryExportRecordService)
+  protected readonly exportRecordService: DataRepositoryExportRecordService
 
   constructor(
     @inject(MessageService) protected readonly messageService: MessageService,
@@ -208,7 +215,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         repositories,
         this.storeService,
         this.providerService,
-      this.crosswalkRegistryService,
         this.hasOpenWorkspace(),
       )
       repositorySelection = await selector.open()
@@ -287,7 +293,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         repositories,
         this.storeService,
         this.providerService,
-        this.crosswalkRegistryService,
         this.hasOpenWorkspace(),
       )
       const repositorySelection = await selector.open()
@@ -371,6 +376,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       if (!shouldContinue) {
         return
       }
+      const crosswalkId = await this.selectCrosswalkForUpload(selectedRepo)
+      if (crosswalkId === undefined) return
 
       const progress = this.providerService.beginOperationProgress(
         selectedRepo,
@@ -392,9 +399,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                     Record<string, unknown>,
                     DataverseProviderLinkSnapshot
                   >(selectedRepo, 'link', input),
+                crosswalkId ?? undefined,
               )
             : await this.providerService.executeForRepository<
-                { repository: DataRepositoryConfig; datasetUrl: string; mode: 'link' },
+                { repository: DataRepositoryConfig; datasetUrl: string; mode: 'link'; crosswalkId?: string },
                 {
                   target: string
                   mappedEntityCount: number
@@ -405,6 +413,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                 repository: selectedRepo,
                 datasetUrl: linkInput.datasetUrl,
                 mode: 'link',
+                ...(crosswalkId ? { crosswalkId } : {}),
               })
         if (!result) {
           throw new Error('The repository provider did not return a link result.')
@@ -524,7 +533,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       repositories,
       this.storeService,
       this.providerService,
-      this.crosswalkRegistryService,
       hasWorkspace,
       exportTargetsByRepositoryId,
       this.recentArpValidationError
@@ -534,6 +542,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         : undefined,
       async (repository, target, action) =>
         this.handleDeleteExportTarget(repository, target, action),
+      async (_repository, target) => this.handleEditExportTarget(target),
     )
     const repositorySelection = await selector.open()
     if (!repositorySelection) {
@@ -574,7 +583,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         repositories,
         this.storeService,
         this.providerService,
-        this.crosswalkRegistryService,
         this.hasOpenWorkspace(),
         exportTargetsByRepositoryId,
         this.recentArpValidationError
@@ -584,6 +592,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           : undefined,
         async (repository, target, action) =>
           this.handleDeleteExportTarget(repository, target, action),
+        async (_repository, target) => this.handleEditExportTarget(target),
       )
       repositorySelection = await selector.open()
 
@@ -646,10 +655,16 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           selectedRepo, selectedExportTarget, syncOptions.metadataMode)
         return
       }
+      const crosswalkId = operation === 'create' && selectedRepo.providerId !== 'zenodo'
+        ? await this.selectCrosswalkForUpload(selectedRepo)
+        : selectedExportTarget?.crosswalkFile
+      if (operation === 'create' && selectedRepo.providerId !== 'zenodo' &&
+          crosswalkId === undefined) return
       await this.executePluginRepositoryOperation(selectedRepo, operation, {
         repository: selectedRepo,
         exportTarget: selectedExportTarget,
         syncMode: repositorySelection.syncMode,
+        ...(crosswalkId ? { crosswalkId } : {}),
       })
       return
     }
@@ -709,7 +724,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       undefined,
       this.providerService.listProviders(),
       this.providerService,
-      await this.crosswalkRegistryService.list(),
       this.messageService,
     )
     const result = await dialog.open()
@@ -723,7 +737,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       repo,
       this.providerService.listProviders(),
       this.providerService,
-      await this.crosswalkRegistryService.list(),
       this.messageService,
     )
     const result = await dialog.open()
@@ -742,6 +755,58 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
   protected hasOpenWorkspace(): boolean {
     return this.workspaceService.tryGetRoots().length > 0
+  }
+
+  protected async compatibleCrosswalks(
+    providerId?: string,
+  ): Promise<CrosswalkRegistryEntry[]> {
+    const crosswalks = await this.crosswalkRegistryService.list()
+    if (!providerId) return crosswalks
+    const normalizedProviderId = providerId.toLocaleLowerCase()
+    const compatible = crosswalks.filter((crosswalk) =>
+      crosswalk.repositories?.some(
+        (repository) => repository.toLocaleLowerCase() === normalizedProviderId,
+      ),
+    )
+    return compatible.length ? compatible : crosswalks
+  }
+
+  protected async selectCrosswalkForUpload(
+    repository: DataRepositoryConfig,
+  ): Promise<string | null | undefined> {
+    const crosswalks = await this.compatibleCrosswalks(repository.providerId)
+    const noCrosswalkValue = '__rockit_no_crosswalk__'
+    const result = await new RepositoryRequiredMetadataDialog({
+      kind: 'form',
+      title: nls.localize('rockit/dataRepository/uploadOptions', 'Upload Options'),
+      description: nls.localize(
+        'rockit/dataRepository/uploadCrosswalkDescription',
+        'Select the metadata crosswalk to use for this upload. The selection will be reused for later updates and synchronization.',
+      ),
+      acceptLabel: nls.localize('rockit/dataRepository/continue', 'Continue'),
+      fields: [{
+        id: 'crosswalkId',
+        label: nls.localize('rockit/dataRepository/crosswalk', 'Metadata Crosswalk'),
+        type: 'select',
+        defaultValue: crosswalks[0]?.id ?? noCrosswalkValue,
+        helpText: nls.localize(
+          'rockit/dataRepository/crosswalkHelp',
+          'A metadata crosswalk translates RO-Crate metadata into the fields expected by the repository. The selected crosswalk is saved with this export and reused for later updates and synchronization.',
+        ),
+        options: [
+          {
+            value: noCrosswalkValue,
+            label: nls.localize('rockit/dataRepository/noCrosswalk', 'No crosswalk'),
+          },
+          ...crosswalks.map((crosswalk) => ({
+            value: crosswalk.id,
+            label: crosswalk.name,
+          })),
+        ],
+      }],
+    }).open()
+    if (!result) return undefined
+    return result.crosswalkId === noCrosswalkValue ? null : result.crosswalkId
   }
 
   protected mergeExportTargets(
@@ -820,6 +885,32 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         return false
       }
     })
+  }
+
+  protected async handleEditExportTarget(target: DataRepositoryExportTarget): Promise<boolean> {
+    try {
+      const entry = await this.exportRecordService.readExport(target)
+      const crosswalks = await this.crosswalkRegistryService.list()
+      const result = await new DataRepositoryExportRecordDialog(entry, crosswalks).open()
+      if (!result || result.crosswalkId === entry.crosswalkFile) return false
+      if (result.crosswalkId && !(await this.crosswalkRegistryService.read(result.crosswalkId))) {
+        throw new Error(nls.localize(
+          'rockit/dataRepository/selectedCrosswalkMissing',
+          "The selected crosswalk '{0}' is no longer registered.",
+          result.crosswalkId,
+        ))
+      }
+      await this.exportRecordService.changeCrosswalk(target, result.crosswalkId)
+      target.crosswalkFile = result.crosswalkId
+      return true
+    } catch (error) {
+      this.messageService.error(nls.localize(
+        'rockit/dataRepository/editExportFailed',
+        'Could not edit the export record: {0}',
+        error instanceof Error ? error.message : String(error),
+      ))
+      return false
+    }
   }
 
   protected async handleDeleteExportTarget(
@@ -1060,6 +1151,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
   protected async handlePluginArpCreate(repository: DataRepositoryConfig): Promise<void> {
     try {
+      const crosswalks = await this.crosswalkRegistryService.list()
       const missingMetadata = await this.getMissingArpDatasetCreationMetadata()
       if (missingMetadata.length) {
         this.messageService.error(
@@ -1093,7 +1185,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         console.warn('Could not load ARP metadata languages; using defaults.', error)
         languages = this.arpExportService.metadataLanguageOptionsFromPayload(undefined)
       }
-      const metadata = await new NativeDataverseDatasetMetadataDialog(defaults, {
+      const uploadOptions = await new NativeDataverseDatasetMetadataDialog(defaults, {
         title: nls.localize(
           'rockit/dataRepository/requiredArpMetadata',
           'Required ARP Dataset Metadata',
@@ -1105,13 +1197,15 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           languages[0]?.value,
         requiredCitationFields: this.nativeExportService.requiredDatasetCreationFields(),
         subjectOptions: this.nativeExportService.datasetCreationSubjectOptions(),
+        crosswalks,
+        defaultCrosswalkId: '',
       }).open()
-      if (!metadata) return
+      if (!uploadOptions) return
       const result = await this.runRepositoryOperation(repository, 'create', () =>
         this.arpExportService.exportToArpWithProvider(
           repository,
           selection.collection,
-          metadata,
+          uploadOptions.metadata,
           async (input) => {
             const response = await this.providerService.executeForRepository<
               typeof input,
@@ -1121,6 +1215,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               throw new Error('The ARP provider returned no creation result.')
             return response
           },
+          uploadOptions.crosswalkId,
         ),
       )
       const target =
@@ -1167,18 +1262,21 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     repository: DataRepositoryConfig,
   ): Promise<void> {
     try {
+      const crosswalks = await this.compatibleCrosswalks(repository.providerId)
       const selection = await new DataverseCollectionBrowserDialog(
         repository,
         this.providerService,
       ).open()
       if (!selection) return
       const defaults =
-        await this.nativeExportService.getDatasetCreationMetadataDefaults(repository)
-      const metadata = await new NativeDataverseDatasetMetadataDialog(defaults, {
+        await this.nativeExportService.getDatasetCreationMetadataDefaults(crosswalks[0]?.id)
+      const uploadOptions = await new NativeDataverseDatasetMetadataDialog(defaults, {
         requiredCitationFields: this.nativeExportService.requiredDatasetCreationFields(),
         subjectOptions: this.nativeExportService.datasetCreationSubjectOptions(),
+        crosswalks,
+        defaultCrosswalkId: crosswalks[0]?.id,
       }).open()
-      if (!metadata) return
+      if (!uploadOptions) return
       const metadataBlockResult = await this.providerService.executeForRepository<
         { repository: DataRepositoryConfig; collectionId: string },
         { aliases?: string[] }
@@ -1193,7 +1291,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.nativeExportService.exportToDataverseWithProvider(
           repository,
           selection.collection,
-          metadata,
+          uploadOptions.metadata,
           enabledMetadataBlocks,
           async (input) => {
             const response = await this.providerService.executeForRepository<
@@ -1205,6 +1303,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             }
             return response
           },
+          uploadOptions.crosswalkId,
         ),
       )
       const createdDataset = result.persistentId || result.datasetId || result.requestUrl

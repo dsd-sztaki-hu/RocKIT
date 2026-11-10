@@ -14,13 +14,16 @@ function setup() {
       ? ok({ total_count: query === 'dvParentAlias:"sztaki"' ? 1 : 0, items: [] })
       : ok({
       total_count: 1,
-      items: query === 'dvParentAlias:"root"'
-        ? [{ type: 'dataverse', identifier: 'sztaki', name: 'SZTAKI' }]
-        : query === 'dvParentAlias:"sztaki"'
-          ? [{ type: 'dataverse', identifier: 'aroma', name: 'AROMA 2.0 test' }]
+      items: query === 'parentDataverseIdentifier:"root"'
+        ? [{ type: 'dataverse', identifier: 'sztaki', name: 'SZTAKI', parentDataverseIdentifier: 'root' }]
+        : query === 'parentDataverseIdentifier:"sztaki"'
+          ? [{ type: 'dataverse', identifier: 'aroma', name: 'AROMA 2.0 test', parentDataverseIdentifier: 'sztaki' }]
           : [{ type: 'dataverse', identifier: 'sztaki', name: 'SZTAKI' }],
     })),
-    getCollection: jest.fn(async id => ok({ alias: id, childCount: id === 'aroma' ? 0 : 2 })),
+    getCollection: jest.fn(async id => ok({
+      alias: id === ':root' ? 'root' : id,
+      childCount: id === 'aroma' ? 0 : 2,
+    })),
     getCollectionContents: jest.fn(() => { throw new Error('Must not prefetch contents') }),
     getCollectionUserPermissions: jest.fn(async () => ok({ permissions: ['AddDataset'] })),
   }
@@ -34,20 +37,39 @@ describe('Dataverse destination operation', () => {
       destinations: [{ id: 'sztaki', label: 'SZTAKI', parentId: 'root', hasChildren: true }],
     })
     expect(client.searchCollections.mock.calls).toEqual([
-      [{ query: 'dvParentAlias:"root"', perPage: 1000, start: 0 }],
+      [{ query: 'parentDataverseIdentifier:"root"', perPage: 1000, start: 0 }],
       [{ query: 'dvParentAlias:"sztaki"', perPage: 1, start: 0, queryEntities: false }],
     ])
-    expect(client.getCollection).not.toHaveBeenCalled()
+    expect(client.getCollection).toHaveBeenCalledWith(':root')
     assert.deepEqual(await operation.list({ repository: {}, parentId: 'sztaki' }), {
       destinations: [{ id: 'aroma', label: 'AROMA 2.0 test', parentId: 'sztaki', hasChildren: false }],
     })
     expect(client.searchCollections).toHaveBeenCalledWith({
-      query: 'dvParentAlias:"sztaki"', perPage: 1000, start: 0,
+      query: 'parentDataverseIdentifier:"sztaki"', perPage: 1000, start: 0,
     })
     expect(client.searchCollections).toHaveBeenLastCalledWith({
       query: 'dvParentAlias:"aroma"', perPage: 1, start: 0, queryEntities: false,
     })
     expect(client.getCollectionContents).not.toHaveBeenCalled()
+  })
+
+  it('resolves the real site-root alias before listing its children', async () => {
+    const { operation, client } = setup()
+    client.getCollection.mockResolvedValueOnce(ok({ alias: 'demo', name: 'Demo Dataverse' }))
+    client.searchCollections.mockImplementation(async ({ query, perPage }) => perPage === 1
+      ? ok({ total_count: 0, items: [] })
+      : ok({ items: [{
+          type: 'dataverse', identifier: 'child', name: 'Child',
+          parentDataverseIdentifier: 'demo',
+        }] }))
+
+    expect(await operation.list({ repository: {} })).toEqual({
+      destinations: [{ id: 'child', label: 'Child', parentId: 'demo', hasChildren: false }],
+    })
+    expect(client.getCollection).toHaveBeenCalledWith(':root')
+    expect(client.searchCollections).toHaveBeenCalledWith({
+      query: 'parentDataverseIdentifier:"demo"', perPage: 1000, start: 0,
+    })
   })
 
   it('restricts filtering to collection names and keeps matched parents expandable', async () => {
@@ -86,14 +108,16 @@ describe('Dataverse destination operation', () => {
     const { operation, client } = setup()
     client.searchCollections.mockImplementation(async ({ perPage }) => perPage === 1
       ? { ok: false, status: 503, payload: { status: 'ERROR' } }
-      : ok({ items: [{ type: 'dataverse', identifier: 'sztaki', name: 'SZTAKI' }] }))
+      : ok({ items: [{ type: 'dataverse', identifier: 'sztaki', name: 'SZTAKI', parentDataverseIdentifier: 'root' }] }))
     await expect(operation.list({ repository: {} })).rejects.toThrow('check child collections')
   })
 
   it('caps results at 1,000 and does not automatically page through the repository', async () => {
     const { operation, client } = setup()
     client.searchCollections.mockResolvedValue(ok({ total_count: 5000, items:
-      Array.from({ length: 1001 }, (_, id) => ({ type: 'dataverse', identifier: String(id) })),
+      Array.from({ length: 1001 }, (_, id) => ({
+        type: 'dataverse', identifier: String(id), parentDataverseIdentifier: 'root',
+      })),
     }))
     const result = await operation.list({ repository: {} })
     expect(result.destinations).toHaveLength(1000)

@@ -34,7 +34,7 @@ function fixture() {
   const service = new ArpRoCrateExportService(
     {} as never, {} as never,
     { requiredFields: () => new Set(['title']) } as never,
-    { recordKnownHash } as never, appState as never, { write: persistenceWrite } as never,
+    { recordKnownHash } as never, appState as never, { write: persistenceWrite } as never, {} as never,
   )
   Object.assign(service, {
     getWorkspaceRoot: () => root,
@@ -58,12 +58,57 @@ function fixture() {
 }
 
 describe('ARP plugin create export completion', () => {
+  it('uses the selected crosswalk for create and the logged crosswalk for update and sync', async () => {
+    const { service, repository } = fixture()
+    const root = new URI('file:///workspace')
+    const canonical = { '@id': './', '@type': 'Dataset', 'https://example.org/title': 'Example' }
+    const remote = { '@id': './', '@type': 'Dataset', arpTitle: 'Remote' }
+    const crate = { '@graph': [canonical] }
+    const remoteCrate = { '@graph': [remote] }
+    const read = jest.fn(async (id: string) => id === 'chosen' ? {
+      id, name: 'Chosen',
+      crosswalks: { arpRoCrateToCanonical: { mappings: [{
+        direction: 'both',
+        source: { block: 'citation', entityClass: 'Dataset', field: 'arpTitle' },
+        canonical: { entity: 'root', entityClass: 'Dataset', property: 'https://example.org/title' },
+      }] } },
+    } : undefined)
+    const exportLogEntry = { mappingFile: 'mapping.json', crosswalkFile: 'chosen' }
+    Object.assign(service, {
+      prepareCreateExport: ArpRoCrateExportService.prototype.prepareCreateExport,
+      readRoCrate: async () => crate,
+      crosswalkRegistry: { read },
+      resolveExistingArpExportTarget: async () => ({
+        pid: 'doi:10.1/example', exportLogEntry, mapping: { './': './' },
+      }),
+      fileHashStoreService: { readFileHashes: async () => ({}) },
+    })
+    const target = {
+      pid: 'doi:10.1/example', target: 'doi:10.1/example', repository: repository.baseUrl,
+      mappingFile: 'mapping.json', crosswalkFile: 'stale-selection', syncType: 'create' as const,
+    }
+
+    const create = await service.prepareCreateExport(root, 'chosen')
+    expect(create.uploadCrate['@graph'][0]).toEqual({ ...remote, arpTitle: 'Example' })
+    const update = await service.prepareUpdateExport(repository, remoteCrate, target)
+    expect(update?.uploadCrate['@graph'][0]).toEqual(create.uploadCrate['@graph'][0])
+    const sync = await service.prepareSyncExport(repository, remoteCrate, target, 'remote-additions')
+    expect(sync.remoteCrate['@graph'][0]).toEqual({ ...canonical, 'https://example.org/title': 'Remote' })
+    expect(crate['@graph'][0]).toEqual(canonical)
+
+    exportLogEntry.crosswalkFile = 'deleted'
+    await expect(service.prepareUpdateExport(repository, remoteCrate, target))
+      .rejects.toThrow("The selected crosswalk 'deleted' is no longer registered.")
+    await expect(service.prepareSyncExport(repository, remoteCrate, target, 'remote-additions'))
+      .rejects.toThrow("The selected crosswalk 'deleted' is no longer registered.")
+  })
+
   it('prepares the payload in RocKIT and records a successful target and mapping', async () => {
     const f = fixture()
     const invoke = jest.fn(async () => f.remote)
 
     const result = await f.service.exportToArpWithProvider(
-      f.repository, f.collection, f.metadata, invoke)
+      f.repository, f.collection, f.metadata, invoke, 'crosswalk-id')
 
     expect(invoke).toHaveBeenCalledWith(expect.objectContaining({
       repository: f.repository, collectionId: 'root', plan: f.plan,
@@ -86,6 +131,7 @@ describe('ARP plugin create export completion', () => {
 
     await expect(f.service.exportToArpWithProvider(
       f.repository, f.collection, f.metadata, async () => interrupted,
+      'crosswalk-id',
     )).rejects.toThrow('File upload failed')
     expect(f.appendExportLog.mock.calls.map(call => call[1].status)).toEqual(['cancelled'])
     expect(f.appendExportLog.mock.calls[0][1].target).toBe(
@@ -97,7 +143,7 @@ describe('ARP plugin create export completion', () => {
     f.remote.pid = 'hdl:21.15109/ARP/VYBLPE'
 
     const result = await f.service.exportToArpWithProvider(
-      f.repository, f.collection, f.metadata, async () => f.remote)
+      f.repository, f.collection, f.metadata, async () => f.remote, 'crosswalk-id')
 
     expect(result.target).toBe(
       'https://repo.example.org/dataset.xhtml?persistentId=hdl:21.15109/ARP/VYBLPE')
@@ -140,7 +186,7 @@ describe('ARP plugin create export completion', () => {
         }
         expect(f.recordKnownHash).toHaveBeenCalledTimes(2)
         return f.remote
-      })
+      }, 'crosswalk-id')
 
     expect(f.recordKnownHash).toHaveBeenCalledWith(
       expect.anything(), 'file.txt', 123, 3, '900150983cd24fb0d6963f7d28e17f72')
@@ -160,6 +206,7 @@ describe('ARP plugin create export completion', () => {
         validationErrors: [{ errorEntity: './', errors: [{ errorMessage: 'Invalid title' }] }],
         payload: { errors: [] },
       } }),
+      'crosswalk-id',
     )).rejects.toBeInstanceOf(ArpRoCrateValidationError)
     expect(f.appendExportLog).not.toHaveBeenCalled()
   })

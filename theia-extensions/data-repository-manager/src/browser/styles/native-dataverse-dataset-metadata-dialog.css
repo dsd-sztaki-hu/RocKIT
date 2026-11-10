@@ -39,6 +39,26 @@
     color: var(--theia-errorForeground);
 }
 
+.native-dv-metadata__help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    margin-left: 6px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    color: var(--theia-descriptionForeground);
+    font-size: 11px;
+    line-height: 1;
+    cursor: help;
+}
+
+.native-dv-metadata__help:focus {
+    outline: 1px solid var(--theia-focusBorder);
+    outline-offset: 2px;
+}
+
 .native-dv-metadata__input,
 .native-dv-metadata__textarea,
 .native-dv-metadata__select {
