@@ -117,6 +117,8 @@ const createWidget = () => {
   }]
   const providerService = {
     listProviders: jest.fn(() => providers),
+    getProviderForRepository: jest.fn(),
+    executeForRepository: jest.fn(),
   }
   const crosswalks = [{
     id: 'arp-dataverse',
@@ -256,5 +258,126 @@ describe('DataRepositoryManagerWidget', () => {
     const { widget } = createWidget()
 
     expect(widget.externalTargetUrl(target)).toBe(expected)
+  })
+
+  it.each(['create', 'update'] as const)(
+    'offers the Zenodo deposition link after a successful %s',
+    async (operation) => {
+      const { widget, providerService, messageService } = createWidget()
+      const zenodo = {
+        ...repository,
+        providerId: 'zenodo',
+        title: 'Zenodo',
+      }
+      providerService.getProviderForRepository = jest.fn(() => ({
+        id: 'zenodo',
+        displayName: 'Zenodo',
+      }))
+      providerService.executeForRepository = jest.fn().mockResolvedValue({
+        landingPage: 'https://zenodo.org/uploads/123',
+      })
+      widget.runRepositoryOperation = jest.fn(async (
+        _repository: DataRepositoryConfig,
+        _operation: string,
+        task: () => Promise<unknown>,
+      ) => task())
+      widget.showTargetNotification = jest.fn()
+
+      await widget.executePluginRepositoryOperation(zenodo, operation, {})
+
+      expect(widget.showTargetNotification).toHaveBeenCalledWith(
+        `Zenodo completed the ${operation} operation.`,
+        'https://zenodo.org/uploads/123',
+        10000,
+      )
+      expect(messageService.info).not.toHaveBeenCalled()
+    },
+  )
+
+  it('does not offer the Zenodo deposition link after synchronization', async () => {
+    const { widget, providerService, messageService } = createWidget()
+    const zenodo = {
+      ...repository,
+      providerId: 'zenodo',
+      title: 'Zenodo',
+    }
+    providerService.getProviderForRepository = jest.fn(() => ({
+      id: 'zenodo',
+      displayName: 'Zenodo',
+    }))
+    providerService.executeForRepository = jest.fn().mockResolvedValue({
+      landingPage: 'https://zenodo.org/uploads/123',
+    })
+    widget.runRepositoryOperation = jest.fn(async (
+      _repository: DataRepositoryConfig,
+      _operation: string,
+      task: () => Promise<unknown>,
+    ) => task())
+    widget.showTargetNotification = jest.fn()
+    widget.roCrateLoader = { refresh: jest.fn().mockResolvedValue(undefined) }
+    widget.loadData = jest.fn().mockResolvedValue(undefined)
+
+    await widget.executePluginRepositoryOperation(zenodo, 'sync', {})
+
+    expect(widget.showTargetNotification).not.toHaveBeenCalled()
+    expect(messageService.info).toHaveBeenCalledWith(
+      'Zenodo completed the sync operation.',
+    )
+  })
+
+  it.each([
+    {
+      providerId: 'dataverse',
+      handler: 'handlePluginDataverseSync',
+      service: 'nativeExportService',
+      serviceMethod: 'syncDataverseWithProvider',
+      result: {
+        target: 'https://demo.dataverse.org/dataset.xhtml?id=42',
+        downloadedFileCount: 1,
+        replacedFileCount: 2,
+        keptLocalFileCount: 3,
+      },
+    },
+    {
+      providerId: 'arp',
+      handler: 'handlePluginArpSync',
+      service: 'arpExportService',
+      serviceMethod: 'syncArpWithProvider',
+      result: {
+        target: 'https://repository.example/dataset/42',
+        downloadedFileCount: 1,
+        replacedFileCount: 2,
+        removedRemoteFileCount: 3,
+        unmappedEntityIds: [],
+      },
+    },
+  ])('does not offer a repository link after $providerId synchronization', async ({
+    providerId,
+    handler,
+    service,
+    serviceMethod,
+    result,
+  }) => {
+    const { widget, messageService } = createWidget()
+    const syncRepository = { ...repository, providerId }
+    const exportTarget = {
+      pid: '42',
+      target: result.target,
+      repository: syncRepository.baseUrl,
+      mappingFile: 'mapping.json',
+      syncType: 'create',
+    }
+    widget[service] = { [serviceMethod]: jest.fn().mockResolvedValue(result) }
+    widget.runRepositoryOperation = jest.fn(async (
+      _repository: DataRepositoryConfig,
+      _operation: string,
+      task: () => Promise<unknown>,
+    ) => task())
+    widget.showTargetNotification = jest.fn()
+
+    await widget[handler](syncRepository, exportTarget, 'complete')
+
+    expect(widget.showTargetNotification).not.toHaveBeenCalled()
+    expect(messageService.info).toHaveBeenCalledTimes(1)
   })
 })

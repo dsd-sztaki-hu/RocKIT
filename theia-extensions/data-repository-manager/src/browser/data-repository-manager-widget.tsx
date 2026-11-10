@@ -1021,7 +1021,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
       const operationResult =
         result && typeof result === 'object'
-          ? (result as { cancelled?: boolean; openedWorkspace?: boolean })
+          ? (result as {
+              cancelled?: boolean
+              openedWorkspace?: boolean
+              landingPage?: string
+            })
           : undefined
       if (operationResult?.cancelled) {
         return
@@ -1030,14 +1034,21 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         await this.roCrateLoader.refresh()
         await this.loadData()
       }
-      this.messageService.info(
-        nls.localize(
-          'rockit/dataRepository/pluginOperationCompleted',
-          '{0} completed the {1} operation.',
-          provider?.displayName ?? repository.providerId ?? repository.title,
-          operation,
-        ),
+      const message = nls.localize(
+        'rockit/dataRepository/pluginOperationCompleted',
+        '{0} completed the {1} operation.',
+        provider?.displayName ?? repository.providerId ?? repository.title,
+        operation,
       )
+      if (
+        repository.providerId === 'zenodo' &&
+        (operation === 'create' || operation === 'update') &&
+        typeof operationResult?.landingPage === 'string'
+      ) {
+        this.showTargetNotification(message, operationResult.landingPage, 10000)
+      } else {
+        void this.messageService.info(message)
+      }
     } catch (error) {
       console.error(`Repository plugin '${operation}' operation failed:`, error)
       this.messageService.error(
@@ -1473,7 +1484,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         ),
       )
       if (!result) return
-      this.showTargetNotification(
+      void this.messageService.info(
         nls.localize(
           'rockit/dataRepository/dataverseSyncCompleted',
           'Dataverse sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} unchanged file(s).',
@@ -1482,8 +1493,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           result.replacedFileCount,
           result.keptLocalFileCount,
         ),
-        result.target,
-        12000,
+        { timeout: 12000 },
       )
     } catch (error) {
       console.error('Dataverse provider sync failed:', error)
@@ -1519,7 +1529,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           },
         ),
       )
-      this.showTargetNotification(
+      void this.messageService.info(
         nls.localize(
           'rockit/dataRepository/arpSyncCompleted',
           'ARP sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} local-only file(s).',
@@ -1528,8 +1538,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           result.replacedFileCount,
           result.removedRemoteFileCount,
         ),
-        result.target,
-        10000,
+        { timeout: 10000 },
       )
       if (result.unmappedEntityIds.length && result.mappingFileName) {
         const previewLimit = 15
