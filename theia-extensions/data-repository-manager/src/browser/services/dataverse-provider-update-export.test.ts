@@ -31,6 +31,7 @@ describe('Dataverse plugin update orchestration', () => {
           '@id': './',
           '@type': 'Dataset',
           name: 'Example',
+          license: { '@id': 'https://creativecommons.org/publicdomain/zero/1.0' },
           hasPart: { '@id': 'file.txt' },
         },
         { '@id': 'file.txt', '@type': 'File', name: 'file.txt' },
@@ -118,7 +119,7 @@ describe('Dataverse plugin update orchestration', () => {
     const inspection: DataverseProviderUpdateInspection = {
       providerId: 'dataverse',
       persistentId: target.pid,
-      datasetVersionData: { metadataBlocks: { citation: {} } },
+      datasetVersionData: { datasetId: 24, metadataBlocks: { citation: {} } },
       draftFiles: [
         { id: '51', label: 'file.txt', md5: 'old', size: 3 },
         { id: '52', label: 'ro-crate-metadata.json' },
@@ -131,6 +132,9 @@ describe('Dataverse plugin update orchestration', () => {
       target,
       async (input) => {
         if (input.phase === 'inspect') return inspection
+        const plan = input.plan as Record<string, unknown>
+        expect(plan.nativeLicensePayload).toEqual({ name: 'CC0 1.0' })
+        expect(plan.datasetId).toBe(24)
         await service.handleProviderUpdateCheckpoint({
           operationId: 'operation-1',
           providerId: 'dataverse',

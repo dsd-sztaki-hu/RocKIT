@@ -152,6 +152,13 @@ class DataverseClient {
     })
   }
 
+  updateDatasetLicense(datasetId, payload) {
+    return this.request(
+      `${this.baseUrl}/api/datasets/${encodeURIComponent(String(datasetId))}/license`,
+      { method: 'PUT', body: JSON.stringify(payload) },
+    )
+  }
+
   uploadFile(persistentId, entryPath, content) {
     const normalized = String(entryPath || '')
       .replace(/\\/g, '/')

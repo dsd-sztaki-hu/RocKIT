@@ -190,6 +190,7 @@ describe('DataverseClient connection transport', () => {
     await client.replaceFile('42', 'data/result.txt', Uint8Array.from([1]))
     await client.deleteFile('43')
     await client.updateDraftMetadata('doi:10.1/example', { metadataBlocks: {} })
+    await client.updateDatasetLicense(24, { name: 'CC0 1.0' })
 
     assert.deepEqual(
       calls.map((call) => [call.init.method, call.url]),
@@ -205,10 +206,12 @@ describe('DataverseClient connection transport', () => {
           'PUT',
           'https://demo.dataverse.org/api/datasets/:persistentId/versions/:draft?persistentId=doi%3A10.1%2Fexample',
         ],
+        ['PUT', 'https://demo.dataverse.org/api/datasets/24/license'],
       ],
     )
     assert.ok(calls[2].init.body instanceof FormData)
     assert.equal(calls[4].init.body, JSON.stringify({ metadataBlocks: {} }))
+    assert.equal(calls[5].init.body, JSON.stringify({ name: 'CC0 1.0' }))
   })
 
   it('downloads Dataverse file bytes for sync', async () => {

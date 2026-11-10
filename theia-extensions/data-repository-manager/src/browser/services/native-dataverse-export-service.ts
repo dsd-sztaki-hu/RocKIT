@@ -287,6 +287,8 @@ interface PreparedDataverseUpdateExport {
   removedFiles: Array<{ remoteFileId: string }>
   metadataFileId: string
   nativeMetadataPayload?: Record<string, unknown>
+  nativeLicensePayload?: { name: string }
+  datasetId?: number
 }
 
 interface ActiveDataverseProviderCreate {
@@ -846,6 +848,7 @@ export class NativeDataverseExportService {
       enabledMetadataBlocks,
       selectedCrosswalk,
     )
+    const nativeLicense = this.dataverseLicense(crate)
     const target = this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) ||
       this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId
     const plan: PreparedDataverseUpdateExport = {
@@ -861,6 +864,12 @@ export class NativeDataverseExportService {
       removedFiles: removedRemoteFileIds.map(remoteFileId => ({ remoteFileId })),
       metadataFileId: inspection.metadataFileId,
       ...(nativeMetadataPayload ? { nativeMetadataPayload } : {}),
+      ...(nativeLicense
+        ? { nativeLicensePayload: { name: nativeLicense.name } }
+        : {}),
+      ...(typeof inspection.datasetVersionData.datasetId === 'number'
+        ? { datasetId: inspection.datasetVersionData.datasetId }
+        : {}),
     }
     const operationId = this.randomId(32)
     const active: ActiveDataverseProviderUpdate = {
@@ -1487,8 +1496,10 @@ export class NativeDataverseExportService {
       }
     }
 
+    const license = crate ? this.dataverseLicense(crate) : undefined
     return {
       datasetVersion: {
+        ...(license ? { license } : {}),
         metadataBlocks,
       },
     }
@@ -2727,6 +2738,44 @@ export class NativeDataverseExportService {
             !!entity && typeof entity === 'object' && !Array.isArray(entity),
         )
       : []
+  }
+
+  protected dataverseLicense(crate: RoCrate): { name: string; uri: string } | undefined {
+    const graph = this.readGraph(crate)
+    const root = graph.find((entity) => entity['@id'] === './')
+    if (!root) {
+      return undefined
+    }
+    const raw = Array.isArray(root.license) ? root.license[0] : root.license
+    const referencedId = raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? this.readStrings((raw as RoCrateEntity)['@id'])[0]
+      : undefined
+    const licenseEntity = referencedId
+      ? graph.find((entity) => entity['@id'] === referencedId)
+      : undefined
+    const uri = this.firstMeaningfulString(
+      referencedId,
+      typeof raw === 'string' ? raw : undefined,
+      licenseEntity?.url,
+    )
+    if (!uri || !/^https?:\/\//i.test(uri)) {
+      return undefined
+    }
+    const normalized = uri
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/+$/, '')
+      .toLowerCase()
+    const knownNames: Record<string, string> = {
+      'creativecommons.org/publicdomain/zero/1.0': 'CC0 1.0',
+      'creativecommons.org/licenses/by/4.0': 'CC BY 4.0',
+      'creativecommons.org/licenses/by-sa/4.0': 'CC BY-SA 4.0',
+      'creativecommons.org/licenses/by-nc/4.0': 'CC BY-NC 4.0',
+      'creativecommons.org/licenses/by-nc-sa/4.0': 'CC BY-NC-SA 4.0',
+      'creativecommons.org/licenses/by-nd/4.0': 'CC BY-ND 4.0',
+      'creativecommons.org/licenses/by-nc-nd/4.0': 'CC BY-NC-ND 4.0',
+    }
+    const name = this.firstMeaningfulString(licenseEntity?.name, knownNames[normalized])
+    return name ? { name, uri } : undefined
   }
 
   protected pruneUnreachableFileEntities(crate: RoCrate): void {

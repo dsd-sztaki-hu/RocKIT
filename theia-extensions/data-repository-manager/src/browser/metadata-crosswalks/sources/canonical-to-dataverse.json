@@ -2938,6 +2938,16 @@
               "Text"
             ],
             "multiple": false
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://schema.org/name",
+            "localName": "name",
+            "valueTypes": [
+              "Text"
+            ],
+            "multiple": false
           }
         ],
         "selection": "firstNonEmpty"
@@ -3465,6 +3475,18 @@
                 "Select"
               ],
               "multiple": false
+            },
+            {
+              "property": "https://schema.org/identifier",
+              "localName": "identifier",
+              "valueEntityType": "https://schema.org/PropertyValue",
+              "valueProperty": "https://schema.org/propertyID"
+            },
+            {
+              "property": "https://schema.org/identifier",
+              "localName": "identifier",
+              "valueEntityType": "https://schema.org/PropertyValue",
+              "valueProperty": "https://schema.org/name"
             }
           ],
           "target": {
@@ -3516,6 +3538,12 @@
                 "Text"
               ],
               "multiple": false
+            },
+            {
+              "property": "https://schema.org/identifier",
+              "localName": "identifier",
+              "valueEntityType": "https://schema.org/PropertyValue",
+              "valueProperty": "https://schema.org/value"
             }
           ],
           "target": {
@@ -3575,6 +3603,16 @@
               "datasetContact"
             ],
             "multiple": true
+          },
+          {
+            "property": "https://schema.org/contactPoint",
+            "localName": "contactPoint"
+          },
+          {
+            "property": "https://schema.org/author",
+            "localName": "author",
+            "requiredProperty": "https://schema.org/email",
+            "exportOnly": true
           }
         ],
         "selection": "firstNonEmpty"
@@ -3590,6 +3628,7 @@
         "schemaPath": "/repositories/dataverse/blocks/citation/schema/fields/datasetContact"
       },
       "mappingStatus": "exactNameAndProfileMatch",
+      "requiredExportChild": "datasetContactEmail",
       "transformations": [
         {
           "operation": "omitEmpty"
@@ -3673,6 +3712,11 @@
                 "Text"
               ],
               "multiple": false
+            },
+            {
+              "property": "https://schema.org/affiliation",
+              "localName": "affiliation",
+              "valueProperty": "https://schema.org/name"
             }
           ],
           "target": {
@@ -3719,6 +3763,10 @@
                 "Text"
               ],
               "multiple": false
+            },
+            {
+              "property": "https://schema.org/email",
+              "localName": "email"
             }
           ],
           "target": {
@@ -6697,6 +6745,17 @@
               "TextArea"
             ],
             "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://schema.org/citation",
+            "localName": "citation",
+            "valueTypes": [
+              "Text",
+              "URL"
+            ],
+            "multiple": true
           }
         ],
         "selection": "firstNonEmpty"
@@ -7075,6 +7134,13 @@
               "geographicCoverage"
             ],
             "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://schema.org/spatialCoverage",
+            "localName": "spatialCoverage",
+            "linkedEntityType": "https://schema.org/Place"
           }
         ],
         "selection": "firstNonEmpty"
@@ -7267,6 +7333,10 @@
                 "Text"
               ],
               "multiple": false
+            },
+            {
+              "property": "https://schema.org/name",
+              "localName": "name"
             }
           ],
           "target": {
@@ -10428,7 +10498,7 @@
           "geographicCoverage",
           "geographicBoundingBox"
         ],
-        "reason": "Creation location and generic content location do not establish the geographic extent represented by the data. Only spatialCoverage with an explicit box is converted in this pass."
+        "reason": "Creation location and generic content location do not establish the geographic extent represented by the data."
       },
       {
         "properties": [
@@ -10453,15 +10523,6 @@
           "studyAssayTechnologyType"
         ],
         "reason": "A generic measurement method does not establish the specific collection mode or assay technology semantics and vocabulary."
-      },
-      {
-        "properties": [
-          "name"
-        ],
-        "targets": [
-          "title"
-        ],
-        "reason": "Rejected by user review. The generic Dataset name is distinct from the citation title."
       },
       {
         "properties": [
@@ -10542,7 +10603,11 @@
       }
     ],
     "supportedRepresentations": {
-      "names": "schema.org/name is scoped to authorName or datasetContactName through the parent role and entity reference. It is never mapped to the root Dataset title.",
+      "names": "schema.org/name is a fallback for the root Dataset title and is scoped to role entities for authorName or datasetContactName. Native title and role-specific names retain priority.",
+      "authorIdentifiers": "A linked schema.org/PropertyValue supplies the Dataverse author identifier scheme from propertyID or name and the identifier from value.",
+      "contacts": "Explicit dataset contacts and contactPoint values retain priority. Authors are an export-only fallback when they have a valid email address.",
+      "citations": "A scalar schema.org/citation is exported as Dataverse relatedMaterial, not as a publication that uses the dataset.",
+      "spatialCoverage": "A linked schema.org/Place name is exported as otherGeographicCoverage without inferring an administrative level.",
       "keywords": "Plain text keywords only. Structured terms and URLs are excluded.",
       "language": "Native language vocabulary labels and schema.org/language labels or referenced Language.name. Target vocabulary validation is retained."
     }

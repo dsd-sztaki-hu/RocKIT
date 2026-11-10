@@ -91,6 +91,10 @@ describe('Dataverse update operation', () => {
         calls.push(['metadata', payload])
         return ok({ status: 'OK' })
       },
+      updateDatasetLicense: async (datasetId, payload) => {
+        calls.push(['license', datasetId, payload])
+        return ok({ status: 'OK' })
+      },
     }
     const { operation, checkpoints } = fixture(client)
     const result = await operation.execute({
@@ -126,13 +130,16 @@ describe('Dataverse update operation', () => {
         removedFiles: [{ remoteFileId: '13' }],
         metadataFileId: '14',
         nativeMetadataPayload: { metadataBlocks: { citation: {} } },
+        datasetId: 24,
+        nativeLicensePayload: { name: 'CC0 1.0' },
       },
     })
 
     assert.deepEqual(
       calls.map((call) => call[0]),
-      ['upload', 'replace', 'delete', 'replace', 'metadata'],
+      ['upload', 'replace', 'delete', 'replace', 'metadata', 'license'],
     )
+    assert.deepEqual(calls.at(-1), ['license', '24', { name: 'CC0 1.0' }])
     assert.deepEqual(
       checkpoints.map((item) => item.stage),
       ['fileUploaded', 'fileReplaced', 'fileRemoved', 'metadataReplaced'],

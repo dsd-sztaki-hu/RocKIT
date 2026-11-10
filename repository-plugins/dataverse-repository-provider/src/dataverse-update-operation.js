@@ -81,7 +81,13 @@ class DataverseUpdateOperation extends DataverseCreateOperation {
 
     const nextMapping = { ...mapping }
     const fileResults = []
-    const totalSteps = addedFiles.length + changedFiles.length + removedFiles.length + 2
+    const nativeLicensePayload = this.object(plan.nativeLicensePayload)
+    const datasetId = this.text(plan.datasetId)
+    if (nativeLicensePayload && !datasetId) {
+      throw new Error('Dataverse license update requires the numeric dataset ID.')
+    }
+    const totalSteps = addedFiles.length + changedFiles.length + removedFiles.length + 2 +
+      (nativeLicensePayload ? 1 : 0)
     let completedSteps = 0
     for (const file of addedFiles) {
       const result = await this.transferFile(
@@ -171,6 +177,16 @@ class DataverseUpdateOperation extends DataverseCreateOperation {
         plan.nativeMetadataPayload,
       )
       this.requireSuccess(updated, 'Dataverse dataset metadata update')
+      completedSteps += 1
+    }
+    if (nativeLicensePayload) {
+      progress.report({
+        message: 'Updating Dataverse dataset license...',
+        completedSteps,
+        totalSteps,
+      })
+      const updated = await client.updateDatasetLicense(datasetId, nativeLicensePayload)
+      this.requireSuccess(updated, 'Dataverse dataset license update')
     }
     return {
       providerId: 'dataverse',

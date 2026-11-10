@@ -75,8 +75,22 @@ Dataset. Unlinked entities are excluded even if their type or name matches.
 Conflicting values for a shared entity property stop reverse mapping.
 An explicit author/contact name takes priority over the generic display
 name. Reverse mapping preserves an existing display name even when the
-old strings were equal. Newly created native entities receive an initial
-display name.
+old strings were equal. The root Dataset `name` is a fallback for the
+Dataverse title when the explicit title is absent. Newly created native
+entities receive an initial display name.
+
+An explicit Dataverse contact or schema.org `contactPoint` has priority.
+When neither exists, authors with a valid email address are exported as
+Dataverse contacts; authors without email are not. This fallback is
+export-only, so importing Dataverse metadata never rewrites an author
+relationship into a contact relationship. Linked schema.org `PropertyValue`
+author identifiers support ORCID-style scheme and value pairs. Scalar
+citations become related material, and a linked `Place.name` becomes other
+geographic coverage without guessing whether it is a country, state, or city.
+
+Dataverse licenses live outside metadata blocks. Native create payloads map
+known schema.org Creative Commons license URLs to Dataverse license objects,
+and updates use Dataverse's dedicated dataset-license endpoint.
 
 Create the Python environment once from the repository root:
 

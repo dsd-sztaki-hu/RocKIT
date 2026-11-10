@@ -124,6 +124,31 @@ function fixture() {
 }
 
 describe('Dataverse plugin create export completion', () => {
+  it('maps a known schema.org license into the Dataverse dataset version', async () => {
+    const f = fixture()
+    Object.assign(f.service, {
+      metadataMappingService: {
+        requiredFields: () => new Set<string>(),
+        buildMetadataBlocks: async () => ({}),
+      },
+    })
+    const payload = await (NativeDataverseExportService.prototype as any).buildDatasetCreationPayload.call(
+      f.service,
+      f.metadata,
+      { '@graph': [{
+        '@id': './',
+        '@type': 'Dataset',
+        license: { '@id': 'https://creativecommons.org/publicdomain/zero/1.0' },
+      }] },
+      undefined,
+      null,
+    )
+    expect(payload.datasetVersion.license).toEqual({
+      name: 'CC0 1.0',
+      uri: 'https://creativecommons.org/publicdomain/zero/1.0',
+    })
+  })
+
   it('persists incremental recovery state and completes the local export link', async () => {
     const f = fixture()
     const result = await f.service.exportToDataverseWithProvider(

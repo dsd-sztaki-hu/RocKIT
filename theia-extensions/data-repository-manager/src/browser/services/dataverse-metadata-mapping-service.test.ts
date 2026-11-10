@@ -315,7 +315,7 @@ describe('Dataverse schema.org review and role-scoped names', () => {
   const roleCrate = () => ({ '@graph': [
     { '@id': './', '@type': 'Dataset', author: { '@id': '#author' }, datasetContact: { '@id': '#contact' } },
     { '@id': '#author', '@type': 'Person', name: 'Same display name' },
-    { '@id': '#contact', '@type': 'Person', name: 'Same display name' },
+    { '@id': '#contact', '@type': 'Person', name: 'Same display name', email: 'contact@example.org' },
     { '@id': '#unrelated', '@type': 'author', name: 'Same display name', authorName: 'Unlinked author' },
   ] as Array<Record<string, any>> })
 
@@ -394,7 +394,7 @@ describe('Dataverse schema.org review and role-scoped names', () => {
       { '@id': './', '@type': 'Dataset' },
       { '@id': '#author', '@type': 'Person', name: 'Author',
         '@reverse': { author: { '@id': './' } } },
-      { '@id': '#contact', '@type': 'Person', name: 'Contact',
+      { '@id': '#contact', '@type': 'Person', name: 'Contact', email: 'contact@example.org',
         '@reverse': { datasetContact: { '@id': './' } } },
     ] }
     const blocks = await service.buildMetadataBlocks(input)
@@ -438,14 +438,62 @@ describe('Dataverse schema.org review and role-scoped names', () => {
     expect(graphOf(result.crate)[1].name).toBe('Shared name')
   })
 
-  it('does not map Dataset names, aliases, inLanguage, structured terms, or keyword URLs', async () => {
+  it('uses Dataset name as the title fallback without mapping aliases, inLanguage, or structured keywords', async () => {
     const blocks = await service.buildMetadataBlocks({ '@graph': [
       { '@id': './', '@type': 'Dataset', name: 'Display name', alternateName: 'Alias',
         inLanguage: 'en', keywords: [{ '@id': '#term' }, 'https://example.org/term'] },
       { '@id': '#term', '@type': 'DefinedTerm', name: 'Term',
         inDefinedTermSet: { name: 'Term set', url: 'https://example.org/vocabulary' } },
     ] })
-    expect(blocks).toEqual({})
+    expect(blocks.citation.fields).toEqual([
+      expect.objectContaining({ typeName: 'title', value: 'Display name' }),
+    ])
+  })
+
+  it('keeps the explicit title ahead of the Dataset name fallback', async () => {
+    const blocks = await service.buildMetadataBlocks({ '@graph': [
+      { '@id': './', '@type': 'Dataset', title: 'Citation title', name: 'Workspace name' },
+    ] })
+    expect(blocks.citation.fields.find(item => item.typeName === 'title')?.value).toBe('Citation title')
+  })
+
+  it('maps schema.org identifiers, citations, places, and only emailed authors as contact points', async () => {
+    const blocks = await service.buildMetadataBlocks({ '@graph': [
+      { '@id': './', '@type': 'Dataset', author: [{ '@id': '#emailed' }, { '@id': '#other' }],
+        citation: 'https://example.org/citation', spatialCoverage: { '@id': '#place' } },
+      { '@id': '#emailed', '@type': 'Person', name: 'Contact Author', email: 'author@example.org',
+        affiliation: { '@id': '#org' }, identifier: { '@id': '#orcid' } },
+      { '@id': '#other', '@type': 'Person', name: 'Other Author' },
+      { '@id': '#org', '@type': 'Organization', name: 'Example Org' },
+      { '@id': '#orcid', '@type': 'PropertyValue', name: 'ORCID', value: '0000-0002-1825-0097' },
+      { '@id': '#place', '@type': 'Place', name: 'Goodplace' },
+    ] })
+    const authors = blocks.citation.fields.find(item => item.typeName === 'author')?.value as any[]
+    expect(authors[0]).toEqual(expect.objectContaining({
+      authorIdentifierScheme: expect.objectContaining({ value: 'ORCID' }),
+      authorIdentifier: expect.objectContaining({ value: '0000-0002-1825-0097' }),
+    }))
+    const contacts = blocks.citation.fields.find(item => item.typeName === 'datasetContact')?.value as any[]
+    expect(contacts).toEqual([expect.objectContaining({
+      datasetContactName: expect.objectContaining({ value: 'Contact Author' }),
+      datasetContactAffiliation: expect.objectContaining({ value: 'Example Org' }),
+      datasetContactEmail: expect.objectContaining({ value: 'author@example.org' }),
+    })])
+    expect(blocks.citation.fields.find(item => item.typeName === 'relatedMaterial')?.value)
+      .toEqual(['https://example.org/citation'])
+    const coverage = blocks.geospatial.fields.find(item => item.typeName === 'geographicCoverage')?.value as any[]
+    expect(coverage[0].otherGeographicCoverage.value).toBe('Goodplace')
+  })
+
+  it('prefers an explicit contact and excludes author contacts without a valid email', async () => {
+    const blocks = await service.buildMetadataBlocks({ '@graph': [
+      { '@id': './', '@type': 'Dataset', author: { '@id': '#author' }, contactPoint: { '@id': '#contact' } },
+      { '@id': '#author', '@type': 'Person', name: 'Author', email: 'invalid' },
+      { '@id': '#contact', '@type': 'ContactPoint', name: 'Repository contact', email: 'contact@example.org' },
+    ] })
+    const contacts = blocks.citation.fields.find(item => item.typeName === 'datasetContact')?.value as any[]
+    expect(contacts).toHaveLength(1)
+    expect(contacts[0].datasetContactEmail.value).toBe('contact@example.org')
   })
 
   it('keeps native language and plain text keywords', async () => {
@@ -510,15 +558,18 @@ describe('Dataverse schema.org review and role-scoped names', () => {
     expect(await service.buildMetadataBlocks(result.crate)).toEqual(blocks)
   })
 
-  it('omits schema.org temporal, journal publication-date and coordinate conversions', async () => {
+  it('keeps place names but omits temporal, journal publication-date and coordinate conversions', async () => {
     const blocks = await service.buildMetadataBlocks({ '@graph': [
       { '@id': './', '@type': 'Dataset', temporalCoverage: '2020/2021', datePublished: '2022-01-01',
         spatialCoverage: { '@id': '#place' }, journalVolumeIssue: { '@id': '#journal' } },
-      { '@id': '#place', '@type': 'Place', geo: { '@id': '#box' } },
+      { '@id': '#place', '@type': 'Place', name: 'Coverage label', geo: { '@id': '#box' } },
       { '@id': '#box', '@type': 'GeoShape', box: '10 20 30 40' },
       { '@id': '#journal', '@type': 'journalVolumeIssue', name: 'Kiskacsa', datePublished: '2023-01-01' },
     ] })
-    expect(blocks).toEqual({})
+    expect(blocks.citation).toBeUndefined()
+    const coverage = blocks.geospatial.fields[0].value as any[]
+    expect(coverage[0].otherGeographicCoverage.value).toBe('Coverage label')
+    expect(coverage[0]).not.toHaveProperty('westLongitude')
   })
 
   it('reads the existing native Time Period child fields', async () => {

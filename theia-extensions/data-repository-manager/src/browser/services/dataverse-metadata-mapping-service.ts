@@ -57,6 +57,8 @@ interface DataverseSourceCandidate {
     acquisitionLocation?: boolean;
     expandedOnly?: boolean;
     linkedEntityType?: string;
+    requiredProperty?: string;
+    exportOnly?: boolean;
     literalField?: string;
     textOnly?: boolean;
 }
@@ -249,7 +251,7 @@ export class DataverseMetadataMappingService {
         if (!this.hasMeaningfulValue(value)) {
             return false;
         }
-        const candidates = this.sourceCandidates(mapping.source?.canonicalCandidates, field.typeName);
+        const candidates = this.reverseSourceCandidates(mapping.source?.canonicalCandidates, field.typeName);
         const source = this.existingSource(root, graph, candidates);
         if (source.acquisitionActionType) {
             const owners = this.acquisitionValueOwners(root, graph, source);
@@ -295,7 +297,7 @@ export class DataverseMetadataMappingService {
             return false;
         }
 
-        const candidates = this.sourceCandidates(mapping.source?.canonicalCandidates, typeName);
+        const candidates = this.reverseSourceCandidates(mapping.source?.canonicalCandidates, typeName);
         const source = candidates.find(candidate =>
             this.hasMeaningfulValue(this.readSourceValue(root, graph, candidate, false)) ||
             this.reverseLinkedEntities(root, graph, candidate).length) ?? candidates[0];
@@ -497,6 +499,15 @@ export class DataverseMetadataMappingService {
         return candidates?.length ? candidates : [{ localName }];
     }
 
+    protected reverseSourceCandidates(
+        candidates: DataverseSourceCandidate[] | undefined,
+        localName: string
+    ): DataverseSourceCandidate[] {
+        const reversible = this.sourceCandidates(candidates, localName)
+            .filter(candidate => candidate.exportOnly !== true);
+        return reversible.length ? reversible : [{ localName }];
+    }
+
     protected propertyKey(entity: RoCrateEntity, property: string, localName?: string): string {
         const schemaTerm = property.match(/^https?:\/\/schema\.org\/(.+)$/)?.[1];
         const keys = [property, ...(schemaTerm
@@ -544,7 +555,12 @@ export class DataverseMetadataMappingService {
 
     protected hasExpandedSchemaType(entity: RoCrateEntity, type: string): boolean {
         const legacyType = type.replace(/^https:\/\/schema\.org\//, 'http://schema.org/');
-        return this.entityTypes(entity).some(entityType => entityType === type || entityType === legacyType);
+        const schemaTerm = type.match(/^https?:\/\/schema\.org\/(.+)$/)?.[1];
+        return this.entityTypes(entity).some(entityType =>
+            entityType === type ||
+            entityType === legacyType ||
+            (!!schemaTerm && (entityType === schemaTerm || entityType === `schema:${schemaTerm}`))
+        );
     }
 
     protected readAcquisitionName(entity: RoCrateEntity): string | undefined {
@@ -558,14 +574,12 @@ export class DataverseMetadataMappingService {
         source: DataverseSourceCandidate
     ): RoCrateEntity | undefined {
         if (!source.property || !source.valueEntityType) return undefined;
-        const link = entity[source.property];
+        const link = entity[this.propertyKey(entity, source.property, source.localName)];
         if (!link || typeof link !== 'object') return undefined;
         if (Array.isArray(link) && link.length !== 1) return undefined;
         const owners = this.resolveEntities(link, graph);
         if (owners.length !== 1) return undefined;
-        const legacyType = source.valueEntityType.replace(/^https:\/\/schema\.org\//, 'http://schema.org/');
-        return this.entityTypes(owners[0]).some(type => type === source.valueEntityType || type === legacyType)
-            ? owners[0] : undefined;
+        return this.hasExpandedSchemaType(owners[0], source.valueEntityType) ? owners[0] : undefined;
     }
 
     protected readSourceValue(
@@ -581,7 +595,7 @@ export class DataverseMetadataMappingService {
         if (source.valueEntityType) {
             const owner = this.typedValueOwner(entity, graph, source);
             if (!owner || !source.valueProperty) return undefined;
-            const value = owner[this.expandedSchemaKey(owner, source.valueProperty)];
+            const value = owner[this.propertyKey(owner, source.valueProperty)];
             return typeof value === 'string' ? value : undefined;
         }
         if (source.expandedOnly && source.property) {
@@ -714,7 +728,8 @@ export class DataverseMetadataMappingService {
             if (source.linkedEntityType) {
                 const type = source.linkedEntityType;
                 const entities = this.uniqueEntitiesById(this.resolveEntities(raw, graph)
-                    .filter(entity => this.hasExpandedSchemaType(entity, type)));
+                    .filter(entity => this.hasExpandedSchemaType(entity, type))
+                    .filter(entity => this.hasRequiredSourceProperty(entity, graph, source)));
                 if (entities.length) return entities;
                 continue;
             }
@@ -729,10 +744,26 @@ export class DataverseMetadataMappingService {
             });
             const legacy = source === candidates[0] ? this.collectCompoundEntities(root, graph, typeName) : [];
             entities.push(...this.reverseLinkedEntities(root, graph, source));
-            const combined = this.uniqueEntitiesById([...entities, ...legacy]);
+            const combined = this.uniqueEntitiesById([...entities, ...legacy])
+                .filter(entity => this.hasRequiredSourceProperty(entity, graph, source));
             if (combined.length) return combined;
         }
         return [];
+    }
+
+    protected hasRequiredSourceProperty(
+        entity: RoCrateEntity,
+        graph: RoCrateEntity[],
+        source: DataverseSourceCandidate
+    ): boolean {
+        if (!source.requiredProperty) return true;
+        const values = this.readScalarValues(this.readSourceValue(entity, graph, {
+            property: source.requiredProperty
+        }));
+        if (source.requiredProperty.match(/(?:^|[/:])email$/i)) {
+            return values.some(value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim()));
+        }
+        return values.some(value => String(value).trim() !== '');
     }
 
     protected collectCompoundEntities(
