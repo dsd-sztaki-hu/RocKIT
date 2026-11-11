@@ -5,6 +5,7 @@
 // ******************************************************************************************
 
 import { injectable } from 'inversify';
+import { schemaContainer, schemaKey, schemaLinks, schemaTypes } from 'crosswalk-manager/lib/browser/zenodo-crosswalk-engine';
 import crosswalk = require('../crosswalks/arp-dataverse-crosswalk.json');
 
 type RoCrateEntity = Record<string, unknown>;
@@ -65,12 +66,14 @@ interface DataverseSourceCandidate {
 
 interface DataverseCrosswalkChild {
     sourceCandidates?: DataverseSourceCandidate[];
+    schemaOrgJournalSources?: Array<{ type: string; property: string }>;
     target: { field: string };
     mappingStatus: string;
 }
 
 interface DataverseCrosswalkMapping {
     direction?: string;
+    schemaOrgJournalLink?: string;
     requiredExportChild?: string;
     source?: { canonicalCandidates?: DataverseSourceCandidate[] };
     target: { block: string; field: string; required?: boolean };
@@ -130,7 +133,8 @@ export class DataverseMetadataMappingService {
                 root,
                 graph,
                 schema,
-                mappings.filter(mapping => mapping.target.block === blockName)
+                mappings.filter(mapping => mapping.target.block === blockName),
+                crate['@context']
             );
             if (fields.length) {
                 blocks[blockName] = {
@@ -221,8 +225,9 @@ export class DataverseMetadataMappingService {
                 continue;
             }
             const updated = this.toDataverseTypeClass(fieldSchema) === 'compound'
-                ? this.applyCompoundField(root, graph, field, fieldSchema, mapping, writes)
-                : this.applyRootField(root, graph, field, fieldSchema, mapping, writes);
+                ? this.applyCompoundField(root, graph, field, fieldSchema, mapping, writes, nextCrate['@context'])
+                : this.applyRootField(root, graph, field, fieldSchema, mapping, writes,
+                    nextCrate['@context'] === undefined ? [] : [nextCrate['@context']]);
             if (updated) {
                 updatedFields.push(mapping.target.field);
             }
@@ -245,19 +250,21 @@ export class DataverseMetadataMappingService {
         field: DataverseMetadataFieldDto,
         schema: DataverseFieldSchema,
         mapping: DataverseCrosswalkMapping,
-        writes: EntityWrites
+        writes: EntityWrites,
+        context: unknown[] = []
     ): boolean {
         const value = this.reverseDataverseFieldValue(field, schema);
         if (!this.hasMeaningfulValue(value)) {
             return false;
         }
         const candidates = this.reverseSourceCandidates(mapping.source?.canonicalCandidates, field.typeName);
-        const source = this.existingSource(root, graph, candidates);
+        const source = this.existingSource(root, graph, candidates, context);
         if (source.acquisitionActionType) {
-            const owners = this.acquisitionValueOwners(root, graph, source);
+            const owners = this.acquisitionValueOwners(root, graph, source, context);
             const values = this.readStrings(value);
             if (owners.length !== 1 || values.length !== 1) return false;
-            const key = this.expandedSchemaKey(owners[0], 'https://schema.org/name');
+            const key = schemaKey(owners[0], 'name', context);
+            if (!key) return false;
             this.assignSourceValue(owners[0], key, values[0], writes);
             return true;
         }
@@ -275,6 +282,16 @@ export class DataverseMetadataMappingService {
             return (Array.isArray(link) ? link : [link]).some(item => item && typeof item === 'object');
         });
         if (hasStructuredLink) return false;
+        if (source.property === 'https://schema.org/citation') {
+            const key = this.propertyKey(root, source.property, source.localName);
+            const current = root[key];
+            const links = (Array.isArray(current) ? current : [current])
+                .filter(item => item && typeof item === 'object');
+            if (links.length) {
+                this.assignSourceValue(root, key, [...this.readScalarValues(value), ...links], writes);
+                return true;
+            }
+        }
         this.writeSourceValue(root, graph, source, value, writes);
         return true;
     }
@@ -285,7 +302,8 @@ export class DataverseMetadataMappingService {
         field: DataverseMetadataFieldDto,
         schema: DataverseFieldSchema,
         mapping: DataverseCrosswalkMapping,
-        writes: EntityWrites
+        writes: EntityWrites,
+        crateContext?: unknown
     ): boolean {
         const typeName = schema.name ?? field.typeName;
         const childFields = schema.childFields;
@@ -295,6 +313,26 @@ export class DataverseMetadataMappingService {
         const rows = this.dataverseCompoundRows(field.value);
         if (!rows.length) {
             return false;
+        }
+
+        if (mapping.schemaOrgJournalLink &&
+            !this.collectCompoundValues(mapping.target.block, root, graph, schema, mapping).length) {
+            const articles = this.schemaJournalArticles(root, graph, mapping.schemaOrgJournalLink, crateContext);
+            if (articles.length) {
+                if (articles.length !== 1 || rows.length !== 1) return false;
+                let updated = false;
+                for (const { field, owner, key, schema } of this.schemaJournalFields(
+                    articles[0], graph, childFields, mapping, crateContext
+                )) {
+                    const remote = this.findDataverseField([rows[0][field]], field);
+                    const value = remote && this.reverseDataverseFieldValue(remote, schema);
+                    if (this.hasMeaningfulValue(value)) {
+                        this.assignSourceValue(owner, key, value, writes);
+                        updated = true;
+                    }
+                }
+                return updated;
+            }
         }
 
         const candidates = this.reverseSourceCandidates(mapping.source?.canonicalCandidates, typeName);
@@ -391,7 +429,8 @@ export class DataverseMetadataMappingService {
         root: RoCrateEntity,
         graph: RoCrateEntity[],
         schema: DataverseMetadataBlockSchema,
-        mappings: DataverseCrosswalkMapping[]
+        mappings: DataverseCrosswalkMapping[],
+        crateContext?: unknown
     ): DataverseMetadataFieldDto[] {
         return mappings
             .map(mapping => ({
@@ -400,7 +439,7 @@ export class DataverseMetadataMappingService {
             }))
             .filter((entry): entry is { mapping: DataverseCrosswalkMapping; field: DataverseFieldSchema } => !!entry.field)
             .sort((a, b) => (a.field.displayOrder ?? 0) - (b.field.displayOrder ?? 0))
-            .map(({ field, mapping }) => this.buildField(blockName, root, graph, field, mapping))
+            .map(({ field, mapping }) => this.buildField(blockName, root, graph, field, mapping, crateContext))
             .filter((field): field is DataverseMetadataFieldDto => !!field);
     }
 
@@ -409,15 +448,27 @@ export class DataverseMetadataMappingService {
         root: RoCrateEntity,
         graph: RoCrateEntity[],
         schema: DataverseFieldSchema,
-        mapping: DataverseCrosswalkMapping
+        mapping: DataverseCrosswalkMapping,
+        crateContext?: unknown
     ): DataverseMetadataFieldDto | undefined {
         const typeName = schema.name;
         if (!typeName || this.ignoredFields.has(`${blockName}.${typeName}`)) {
             return undefined;
         }
         const typeClass = this.toDataverseTypeClass(schema);
+        const context = crateContext === undefined ? [] : [crateContext];
         if (typeClass === 'compound') {
-            const values = this.collectCompoundValues(blockName, root, graph, schema, mapping);
+            const values = this.collectCompoundValues(blockName, root, graph, schema, mapping, context);
+            if (!values.length && mapping.schemaOrgJournalLink && schema.childFields) {
+                for (const article of this.schemaJournalArticles(root, graph, mapping.schemaOrgJournalLink, crateContext)) {
+                    const fields = this.schemaJournalFields(article, graph, schema.childFields, mapping, crateContext);
+                    if (fields.length) {
+                        values.push(Object.fromEntries(fields.map(({ field, schema, value }) => [
+                            field, { typeName: field, typeClass: this.toDataverseTypeClass(schema), multiple: false, value }
+                        ])));
+                    }
+                }
+            }
             if (!values.length) {
                 return undefined;
             }
@@ -430,7 +481,7 @@ export class DataverseMetadataMappingService {
         }
 
         const values = this.collectSourceValues(root, graph,
-            this.sourceCandidates(mapping.source?.canonicalCandidates, typeName), schema, true);
+            this.sourceCandidates(mapping.source?.canonicalCandidates, typeName), schema, true, false, context);
         const value = this.buildPrimitiveValue(values, schema);
         if (value === undefined) {
             return undefined;
@@ -443,12 +494,45 @@ export class DataverseMetadataMappingService {
         };
     }
 
+    protected schemaJournalArticles(
+        root: RoCrateEntity, graph: RoCrateEntity[], link: string, crateContext: unknown
+    ): RoCrateEntity[] {
+        const context = crateContext === undefined ? [] : [crateContext];
+        return schemaLinks(root, link, graph, context).filter(entity =>
+            schemaTypes(entity, context).some(type => type === 'ScholarlyArticle' || type === 'Article'));
+    }
+
+    protected schemaJournalFields(
+        article: RoCrateEntity,
+        graph: RoCrateEntity[],
+        childFields: Record<string, DataverseFieldSchema>,
+        mapping: DataverseCrosswalkMapping,
+        crateContext: unknown
+    ) {
+        const context = crateContext === undefined ? [] : [crateContext];
+        return (mapping.children ?? []).flatMap(child => {
+            const field = child.target.field;
+            const schema = childFields[field];
+            if (!schema || !this.isExecutableMapping(child.mappingStatus)) return [];
+            for (const source of child.schemaOrgJournalSources ?? []) {
+                const owner = schemaContainer(article, source.type, graph, context);
+                const key = owner && schemaKey(owner, source.property, context);
+                if (!owner || !key) continue;
+                const values = this.readScalarValues(owner[key]);
+                const value = values.length === 1 ? this.normalizeValue(field, values[0], schema) : undefined;
+                if (value !== undefined) return [{ field, schema, owner, key, value }];
+            }
+            return [];
+        });
+    }
+
     protected collectCompoundValues(
         blockName: string,
         root: RoCrateEntity,
         graph: RoCrateEntity[],
         schema: DataverseFieldSchema,
-        mapping: DataverseCrosswalkMapping
+        mapping: DataverseCrosswalkMapping,
+        context: unknown[] = []
     ): Array<Record<string, DataverseMetadataFieldDto>> {
         const typeName = schema.name;
         const childFields = schema.childFields;
@@ -456,7 +540,7 @@ export class DataverseMetadataMappingService {
             return [];
         }
 
-        const entities = this.collectMappedCompoundEntities(root, graph, typeName, mapping);
+        const entities = this.collectMappedCompoundEntities(root, graph, typeName, mapping, context);
         return entities
             .map(entity => {
                 const value: Record<string, DataverseMetadataFieldDto> = {};
@@ -474,7 +558,7 @@ export class DataverseMetadataMappingService {
                     const childValues = this.collectSourceValues(entity, graph,
                         this.sourceCandidates(childMapping.sourceCandidates, childName), child, false,
                         this.isPrimaryCompoundName(typeName, childName) &&
-                            (typeName !== 'keyword' || this.entityTypes(entity).includes(typeName)));
+                            (typeName !== 'keyword' || this.entityTypes(entity).includes(typeName)), context);
                     const childValue = this.buildPrimitiveValue(childValues, child);
                     if (childValue !== undefined) {
                         value[childName] = {
@@ -526,31 +610,36 @@ export class DataverseMetadataMappingService {
     protected acquisitionValueOwners(
         root: RoCrateEntity,
         graph: RoCrateEntity[],
-        source: DataverseSourceCandidate
+        source: DataverseSourceCandidate,
+        context: unknown[]
     ): RoCrateEntity[] {
         if (!source.acquisitionActionType || !source.property) return [];
-        const actionType = source.acquisitionActionType;
-        const property = source.property;
-        const resultType = source.acquisitionResultType;
+        const actionType = this.schemaTerm(source.acquisitionActionType);
+        const property = this.schemaTerm(source.property);
+        const resultType = source.acquisitionResultType && this.schemaTerm(source.acquisitionResultType);
         const resultIds = resultType
-            ? this.resolveEntities(root[this.expandedSchemaKey(root, 'https://schema.org/hasPart')], graph)
-                .filter(part => this.hasExpandedSchemaType(part, resultType))
+            ? schemaLinks(root, 'hasPart', graph, context)
+                .filter(part => schemaTypes(part, context).includes(resultType))
                 .flatMap(part => this.readStrings(part['@id']))
             : [String(root['@id'])];
         const owners = graph.filter(action =>
-            this.hasExpandedSchemaType(action, actionType) &&
-            this.readReferenceIds(action[this.expandedSchemaKey(action, 'https://schema.org/result')])
+            schemaTypes(action, context).includes(actionType) &&
+            this.readReferenceIds(this.contextualSchemaValue(action, 'result', context))
                 .some(id => resultIds.includes(id))
-        ).flatMap(action => {
-            const value = action[this.expandedSchemaKey(action, property)];
-            const links = Array.isArray(value) ? value : [value];
-            return links.filter(link => link && typeof link === 'object')
-                .flatMap(link => this.resolveEntities(link, graph));
-        });
+        ).flatMap(action => schemaLinks(action, property, graph, context));
         return [...new Set(owners)].filter(owner =>
-            (!source.acquisitionLocation || this.hasExpandedSchemaType(owner, 'https://schema.org/Place')) &&
-            this.readAcquisitionName(owner) !== undefined
+            (!source.acquisitionLocation || schemaTypes(owner, context).includes('Place')) &&
+            this.readAcquisitionName(owner, context) !== undefined
         );
+    }
+
+    protected schemaTerm(property: string): string {
+        return property.replace(/^https?:\/\/schema\.org\//, '');
+    }
+
+    protected contextualSchemaValue(entity: RoCrateEntity, term: string, context: unknown[]): unknown {
+        const key = schemaKey(entity, term, context);
+        return key === undefined ? undefined : entity[key];
     }
 
     protected hasExpandedSchemaType(entity: RoCrateEntity, type: string): boolean {
@@ -563,8 +652,8 @@ export class DataverseMetadataMappingService {
         );
     }
 
-    protected readAcquisitionName(entity: RoCrateEntity): string | undefined {
-        const name = entity[this.expandedSchemaKey(entity, 'https://schema.org/name')];
+    protected readAcquisitionName(entity: RoCrateEntity, context: unknown[]): string | undefined {
+        const name = this.contextualSchemaValue(entity, 'name', context);
         return typeof name === 'string' && name.trim() ? name : undefined;
     }
 
@@ -587,10 +676,12 @@ export class DataverseMetadataMappingService {
         graph: RoCrateEntity[],
         source: DataverseSourceCandidate,
         legacyFallback = true,
-        fallbackToEntityName = false
+        fallbackToEntityName = false,
+        context: unknown[] = []
     ): unknown {
         if (source.acquisitionActionType) {
-            return this.acquisitionValueOwners(entity, graph, source).map(owner => this.readAcquisitionName(owner));
+            return this.acquisitionValueOwners(entity, graph, source, context)
+                .map(owner => this.readAcquisitionName(owner, context));
         }
         if (source.valueEntityType) {
             const owner = this.typedValueOwner(entity, graph, source);
@@ -599,7 +690,7 @@ export class DataverseMetadataMappingService {
             return typeof value === 'string' ? value : undefined;
         }
         if (source.expandedOnly && source.property) {
-            return entity[this.expandedSchemaKey(entity, source.property)];
+            return this.contextualSchemaValue(entity, this.schemaTerm(source.property), context);
         }
         const key = this.propertyKey(entity, source.property ?? source.localName ?? '', source.localName);
         let value = entity[key] ?? (legacyFallback && source.localName
@@ -627,7 +718,8 @@ export class DataverseMetadataMappingService {
     protected existingSource(
         entity: RoCrateEntity,
         graph: RoCrateEntity[],
-        candidates: DataverseSourceCandidate[]
+        candidates: DataverseSourceCandidate[],
+        context: unknown[] = []
     ): DataverseSourceCandidate {
         return candidates.find(source => {
             const key = this.propertyKey(entity, source.property ?? source.localName ?? '', source.localName);
@@ -636,7 +728,7 @@ export class DataverseMetadataMappingService {
                 (Array.isArray(value) && value.every(item => typeof item === 'string' || typeof item === 'number'));
             return (!source.textOnly && !source.valueProperty &&
                 Object.prototype.hasOwnProperty.call(entity, key) && primitive) ||
-                this.readScalarValues(this.readSourceValue(entity, graph, source, false)).length > 0;
+                this.readScalarValues(this.readSourceValue(entity, graph, source, false, false, context)).length > 0;
         }) ?? candidates[0];
     }
 
@@ -697,11 +789,12 @@ export class DataverseMetadataMappingService {
         candidates: DataverseSourceCandidate[],
         schema: DataverseFieldSchema,
         includeTypeMatches = false,
-        fallbackToEntityName = false
+        fallbackToEntityName = false,
+        context: unknown[] = []
     ): DataverseValue[] {
         for (const source of candidates) {
             const fieldName = source.localName ?? schema.name ?? '';
-            const raw = this.readSourceValue(entity, graph, source, true, fallbackToEntityName);
+            const raw = this.readSourceValue(entity, graph, source, true, fallbackToEntityName, context);
             const values = this.readScalarValues(raw)
                 .map(value => this.normalizeValue(fieldName, value, schema))
                 .filter((value): value is DataverseValue => value !== undefined);
@@ -720,15 +813,18 @@ export class DataverseMetadataMappingService {
         root: RoCrateEntity,
         graph: RoCrateEntity[],
         typeName: string,
-        mapping: DataverseCrosswalkMapping
+        mapping: DataverseCrosswalkMapping,
+        context: unknown[] = []
     ): RoCrateEntity[] {
         const candidates = this.sourceCandidates(mapping.source?.canonicalCandidates, typeName);
         for (const source of candidates) {
-            const raw = this.readSourceValue(root, graph, source);
+            const raw = this.readSourceValue(root, graph, source, true, false, context);
             if (source.linkedEntityType) {
                 const type = source.linkedEntityType;
                 const entities = this.uniqueEntitiesById(this.resolveEntities(raw, graph)
-                    .filter(entity => this.hasExpandedSchemaType(entity, type))
+                    .filter(entity => source.expandedOnly
+                        ? schemaTypes(entity, context).includes(this.schemaTerm(type))
+                        : this.hasExpandedSchemaType(entity, type))
                     .filter(entity => this.hasRequiredSourceProperty(entity, graph, source)));
                 if (entities.length) return entities;
                 continue;

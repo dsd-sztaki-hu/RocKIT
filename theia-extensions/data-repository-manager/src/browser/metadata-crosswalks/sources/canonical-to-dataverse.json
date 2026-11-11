@@ -8877,7 +8877,13 @@
           ],
           "onMissing": {
             "action": "omit"
-          }
+          },
+          "schemaOrgJournalSources": [
+            {
+              "type": "PublicationVolume",
+              "property": "volumeNumber"
+            }
+          ]
         },
         {
           "id": "dataverse.journal.journalVolumeIssue.journalIssue",
@@ -8923,7 +8929,13 @@
           ],
           "onMissing": {
             "action": "omit"
-          }
+          },
+          "schemaOrgJournalSources": [
+            {
+              "type": "PublicationIssue",
+              "property": "issueNumber"
+            }
+          ]
         },
         {
           "id": "dataverse.journal.journalVolumeIssue.journalPubDate",
@@ -8970,13 +8982,24 @@
           ],
           "onMissing": {
             "action": "omit"
-          }
+          },
+          "schemaOrgJournalSources": [
+            {
+              "type": "PublicationIssue",
+              "property": "datePublished"
+            },
+            {
+              "type": "PublicationVolume",
+              "property": "datePublished"
+            }
+          ]
         }
       ],
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "none expected"
+      "lossiness": "none expected",
+      "schemaOrgJournalLink": "citation"
     },
     {
       "id": "dataverse.journal.journalArticleType",
@@ -10573,7 +10596,7 @@
         "targets": [
           "journalPubDate"
         ],
-        "reason": "Explicitly rejected by user review. Do not infer the associated journal volume/issue publication date from schema.org publication dates."
+        "reason": "A Dataset or cited article publication date does not establish the journal date. Only datePublished on the linked PublicationIssue or PublicationVolume is used."
       },
       {
         "properties": [
@@ -10609,7 +10632,8 @@
       "citations": "A scalar schema.org/citation is exported as Dataverse relatedMaterial, not as a publication that uses the dataset.",
       "spatialCoverage": "A linked schema.org/Place name is exported as otherGeographicCoverage without inferring an administrative level.",
       "keywords": "Plain text keywords only. Structured terms and URLs are excluded.",
-      "language": "Native language vocabulary labels and schema.org/language labels or referenced Language.name. Target vocabulary validation is retained."
+      "language": "Native language vocabulary labels and schema.org/language labels or referenced Language.name. Target vocabulary validation is retained.",
+      "journal": "Follow Dataset citation links to typed articles and their isPartOf issue and volume. Reverse mapping requires one cited article and one incoming row."
     }
   }
 }

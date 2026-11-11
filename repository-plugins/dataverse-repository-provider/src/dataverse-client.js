@@ -99,10 +99,9 @@ class DataverseClient {
     )
   }
 
-  downloadFile(fileId) {
-    return this.downloadBytes(
-      `${this.baseUrl}/api/access/datafile/${encodeURIComponent(fileId)}`,
-    )
+  downloadFile(fileId, { original = false } = {}) {
+    const url = `${this.baseUrl}/api/access/datafile/${encodeURIComponent(fileId)}`
+    return this.downloadBytes(original ? `${url}?format=original` : url)
   }
 
   downloadDatasetZip(persistentId) {

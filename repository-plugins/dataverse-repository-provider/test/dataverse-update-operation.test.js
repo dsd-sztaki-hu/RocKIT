@@ -5,6 +5,7 @@
 // ******************************************************************************************
 
 const assert = require('node:assert/strict')
+const { createHash } = require('node:crypto')
 
 const {
   CHECKPOINT_COMMAND,
@@ -125,6 +126,7 @@ describe('Dataverse update operation', () => {
             entryPath: 'changed.txt',
             sourceUri: 'file:///changed.txt',
             remoteFileId: '12',
+            remoteChecksum: { type: 'MD5', value: createHash('md5').update('old content').digest('hex') },
           },
         ],
         removedFiles: [{ remoteFileId: '13' }],
@@ -146,5 +148,57 @@ describe('Dataverse update operation', () => {
     )
     assert.equal(result.metadataRemoteId, '104')
     assert.deepEqual(result.removedRemoteFileIds, ['13'])
+  })
+
+  it.each([
+    { type: 'SHA-1', value: createHash('sha1').update(Uint8Array.from([1, 2, 3])).digest('hex') },
+    undefined,
+  ])('keeps identical files on a metadata-only update with checksum %p', async (remoteChecksum) => {
+    const client = {
+      downloadFile: jest.fn(async () => ({ ...ok({}), bytes: Uint8Array.from([1, 2, 3]) })),
+      replaceFile: jest.fn(async () => ok({})),
+      updateDraftMetadata: jest.fn(async () => ok({})),
+    }
+    const { operation, checkpoints } = fixture(client)
+    const metadataCrate = {
+      '@graph': [
+        { '@id': './', '@type': 'Dataset', hasPart: { '@id': 'nested/file.txt' } },
+        { '@id': 'nested/file.txt', '@type': 'File' },
+      ],
+    }
+    const result = await operation.execute({
+      phase: 'apply',
+      repository: { baseUrl: 'https://dv.example' },
+      persistentId: 'doi:10.1/example',
+      operationId: 'operation-1',
+      plan: {
+        metadataCrate,
+        remoteMetadataCrate: {
+          '@graph': [
+            { '@id': './', '@type': 'Dataset', hasPart: { '@id': '12' } },
+            { '@id': '12', '@type': 'File' },
+          ],
+        },
+        mapping: { 'nested/file.txt': '12' },
+        addedFiles: [],
+        changedFiles: [{
+          localFileId: 'nested/file.txt',
+          entryPath: 'nested/file.txt',
+          sourceUri: 'file:///nested/file.txt',
+          remoteFileId: '12',
+          remoteChecksum,
+        }],
+        removedFiles: [],
+        metadataFileId: '14',
+        nativeMetadataPayload: { metadataBlocks: { citation: {} } },
+      },
+    })
+    expect(client.replaceFile).not.toHaveBeenCalled()
+    expect(client.updateDraftMetadata).toHaveBeenCalledTimes(1)
+    if (remoteChecksum) expect(client.downloadFile).not.toHaveBeenCalled()
+    else expect(client.downloadFile).toHaveBeenCalledWith('12', { original: true })
+    expect(result.fileResults).toEqual([])
+    expect(result.metadataRemoteId).toBe('14')
+    expect(checkpoints.map(item => item.stage)).toEqual(['metadataReplaced'])
   })
 })

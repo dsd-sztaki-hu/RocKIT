@@ -4,9 +4,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
+const { createHash, getHashes } = require('node:crypto')
+const { isDeepStrictEqual } = require('node:util')
 const { DataverseCreateOperation } = require('./dataverse-create-operation')
 
 const CHECKPOINT_COMMAND = 'rockit.repositories.checkpointUpdateExport'
+const CHECKSUM_ALGORITHMS = new Set(getHashes())
 
 class DataverseUpdateOperation extends DataverseCreateOperation {
   async execute(input, progress = { report() {} }) {
@@ -116,11 +119,13 @@ class DataverseUpdateOperation extends DataverseCreateOperation {
         completedSteps,
         totalSteps,
       )
-      nextMapping[result.localFileId] = result.remoteId
-      fileResults.push(result)
-      await this.checkpoint(operationId, persistentId, 'fileReplaced', {
-        fileResult: result,
-      })
+      if (result) {
+        nextMapping[result.localFileId] = result.remoteId
+        fileResults.push(result)
+        await this.checkpoint(operationId, persistentId, 'fileReplaced', {
+          fileResult: result,
+        })
+      }
       completedSteps += 1
     }
     for (const file of removedFiles) {
@@ -153,14 +158,16 @@ class DataverseUpdateOperation extends DataverseCreateOperation {
         remoteId,
       )
     }
-    const metadataReplacement = await client.replaceFile(
-      metadataFileId,
-      'ro-crate-metadata.json',
-      new TextEncoder().encode(`${JSON.stringify(rewrittenCrate, null, 2)}\n`),
-    )
-    this.requireSuccess(metadataReplacement, 'Dataverse RO-Crate metadata replacement')
-    const metadataRemoteId =
-      this.findDataFileId(metadataReplacement.payload) || metadataFileId
+    let metadataRemoteId = metadataFileId
+    if (!isDeepStrictEqual(rewrittenCrate, plan.remoteMetadataCrate)) {
+      const metadataReplacement = await client.replaceFile(
+        metadataFileId,
+        'ro-crate-metadata.json',
+        new TextEncoder().encode(`${JSON.stringify(rewrittenCrate, null, 2)}\n`),
+      )
+      this.requireSuccess(metadataReplacement, 'Dataverse RO-Crate metadata replacement')
+      metadataRemoteId = this.findDataFileId(metadataReplacement.payload) || metadataFileId
+    }
     await this.checkpoint(operationId, persistentId, 'metadataReplaced', {
       metadataRemoteId,
     })
@@ -215,14 +222,17 @@ class DataverseUpdateOperation extends DataverseCreateOperation {
         `Dataverse update contains an invalid ${replacement ? 'replacement' : 'new'} file.`,
       )
     }
+    const content = await this.vscode.workspace.fs.readFile(
+      this.vscode.Uri.parse(sourceUri),
+    )
+    if (replacement && await this.sameRemoteContent(client, previousRemoteId, file.remoteChecksum, content)) {
+      return undefined
+    }
     progress.report({
       message: `${replacement ? 'Replacing' : 'Uploading'} ${entryPath}...`,
       completedSteps,
       totalSteps,
     })
-    const content = await this.vscode.workspace.fs.readFile(
-      this.vscode.Uri.parse(sourceUri),
-    )
     const response = replacement
       ? await client.replaceFile(previousRemoteId, entryPath, content)
       : await client.uploadFile(persistentId, entryPath, content)
@@ -242,6 +252,22 @@ class DataverseUpdateOperation extends DataverseCreateOperation {
       lastModified: file.lastModified,
       sourceSize: file.sourceSize,
     }
+  }
+
+  async sameRemoteContent(client, remoteId, checksum, content) {
+    const algorithm = this.text(checksum?.type)?.toLowerCase().replace(/-/g, '')
+    const expected = this.text(checksum?.value)?.toLowerCase().replace(/^md5:/, '')
+    if (algorithm && CHECKSUM_ALGORITHMS.has(algorithm) && expected && /^[a-f0-9]+$/.test(expected)) {
+      const actual = createHash(algorithm).update(content).digest('hex')
+      if (actual.length === expected.length) return actual === expected
+    }
+    const remote = await client.downloadFile(remoteId, { original: true })
+    this.requireSuccess(remote, `Dataverse content check for file '${remoteId}'`)
+    if (!(remote.bytes instanceof Uint8Array)) {
+      throw new Error(`Dataverse did not return file content for '${remoteId}'.`)
+    }
+    return Buffer.from(content.buffer, content.byteOffset, content.byteLength)
+      .equals(remote.bytes)
   }
 
   checkpoint(operationId, persistentId, stage, extra) {
@@ -269,6 +295,9 @@ class DataverseUpdateOperation extends DataverseCreateOperation {
             id,
             label,
             persistentId: this.text(dataFile.persistentId),
+            checksum: this.text(checksum?.type) && this.text(checksum?.value)
+              ? { type: this.text(checksum.type), value: this.text(checksum.value) }
+              : undefined,
             md5:
               this.text(dataFile.md5) ||
               (this.text(checksum?.type)?.toLowerCase() === 'md5'

@@ -60,6 +60,7 @@ export interface NativeDataverseDraftFileRecord {
   label: string
   persistentId?: string
   md5?: string
+  checksum?: { type: string; value: string }
   size?: number
 }
 
@@ -270,6 +271,7 @@ interface PreparedDataverseUpdateFile {
   entryPath: string
   sourceUri: string
   remoteFileId?: string
+  remoteChecksum?: NativeDataverseDraftFileRecord['checksum']
   lastModified?: number
   sourceSize?: number
 }
@@ -286,6 +288,7 @@ interface PreparedDataverseUpdateExport {
   changedFiles: PreparedDataverseUpdateFile[]
   removedFiles: Array<{ remoteFileId: string }>
   metadataFileId: string
+  remoteMetadataCrate: RoCrate
   nativeMetadataPayload?: Record<string, unknown>
   nativeLicensePayload?: { name: string }
   datasetId?: number
@@ -830,13 +833,17 @@ export class NativeDataverseExportService {
       if (!file.sourceUri) {
         throw new Error(`Cannot prepare Dataverse update source '${file.entryPath}'.`)
       }
+      const remoteFileId = replacement ? exportTarget.mapping[localId] : undefined
+      const remote = remoteFileId ? draftFilesById.get(remoteFileId) : undefined
+      const remoteChecksum = remote?.checksum ??
+        (remote?.md5 ? { type: 'MD5', value: remote.md5 } : undefined)
       return {
         localFileId: localId,
         entryPath: file.entryPath,
         sourceUri: file.sourceUri,
         lastModified: file.lastModified,
         sourceSize: file.sourceSize,
-        ...(replacement ? { remoteFileId: exportTarget.mapping[localId] } : {}),
+        ...(remoteFileId ? { remoteFileId, remoteChecksum } : {}),
       }
     }
     const enabledMetadataBlocks = this.datasetVersionMetadataBlockAliases(
@@ -863,6 +870,7 @@ export class NativeDataverseExportService {
       changedFiles: changedIds.map(id => prepareFile(id, true)),
       removedFiles: removedRemoteFileIds.map(remoteFileId => ({ remoteFileId })),
       metadataFileId: inspection.metadataFileId,
+      remoteMetadataCrate: inspection.remoteMetadataCrate,
       ...(nativeMetadataPayload ? { nativeMetadataPayload } : {}),
       ...(nativeLicense
         ? { nativeLicensePayload: { name: nativeLicense.name } }
@@ -956,7 +964,7 @@ export class NativeDataverseExportService {
         persistentId: plan.persistentId,
         target,
         addedFileCount: plan.addedFiles.length,
-        replacedFileCount: plan.changedFiles.length,
+        replacedFileCount: result.fileResults.filter(file => file.kind === 'changed').length,
         removedFileCount: plan.removedFiles.length,
         mappingFileName: plan.mappingFileName,
       }

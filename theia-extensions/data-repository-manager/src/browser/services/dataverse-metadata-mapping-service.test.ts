@@ -6,6 +6,47 @@
 
 import { DataverseMetadataMappingService } from './dataverse-metadata-mapping-service'
 
+describe('Dataverse journal metadata from a cited Schema.org article', () => {
+  const service = new DataverseMetadataMappingService()
+  const root = {
+    '@id': './', '@type': 'Dataset', datePublished: '2026-11-10',
+    citation: ['https://example.org/reference', { '@id': '#article' }],
+  }
+  const article = {
+    '@id': '#article', '@type': 'ScholarlyArticle', datePublished: '2026-11-09',
+    isPartOf: { '@id': '#issue' },
+  }
+  const issue = { '@id': '#issue', '@type': 'PublicationIssue', issueNumber: 2 }
+  const context = 'https://w3id.org/ro/crate/1.1/context'
+
+  it('exports an issue without a volume or periodical and ignores unrelated dates', async () => {
+    const metadataBlocks = await service.buildMetadataBlocks({ '@context': context, '@graph': [root, article, issue] })
+    expect(metadataBlocks.journal.fields[0].value).toEqual([{
+      journalIssue: { typeName: 'journalIssue', typeClass: 'primitive', multiple: false, value: '2' },
+    }])
+  })
+
+  it('round-trips issue, volume and publication date to their linked owners', async () => {
+    const volume = { '@id': '#volume', '@type': 'PublicationVolume', volumeNumber: '5' }
+    const linkedIssue = { ...issue, isPartOf: { '@id': '#volume' }, datePublished: '2026-10-01' }
+    const unrelated = { ...volume, '@id': '#unrelated', volumeNumber: '99' }
+    const crate = { '@context': context, '@graph': [root, article, linkedIssue, volume, unrelated] }
+    const metadataBlocks = await service.buildMetadataBlocks(crate)
+    const [row] = metadataBlocks.journal.fields[0].value as Array<Record<string, { value: unknown }>>
+    expect(Object.fromEntries(Object.entries(row).map(([key, field]) => [key, field.value]))).toEqual({
+      journalIssue: '2', journalVolume: '5', journalPubDate: '2026-10-01',
+    })
+    row.journalIssue.value = '3'
+    row.journalVolume.value = '6'
+    row.journalPubDate.value = '2026-10-02'
+    const updated = service.applyMetadataBlocksToRoCrate(crate, { metadataBlocks })
+    expect(updated.crate['@graph']).toEqual([
+      root, article, { ...linkedIssue, issueNumber: '3', datePublished: '2026-10-02' },
+      { ...volume, volumeNumber: '6' }, unrelated,
+    ])
+  })
+})
+
 it('exports typed Dataset distributions with download links and skips them on reverse mapping', async () => {
   const service = new DataverseMetadataMappingService()
   const schema = 'https://schema.org/'
@@ -83,6 +124,32 @@ describe('Dataverse astronomy acquisition metadata', () => {
       root, photo, { ...camera, [name]: 'Updated Survey camera' },
       { ...observatory, [name]: 'Updated Survey observatory' },
     ])
+  })
+
+  it('resolves compact acquisition and distribution terms using the crate context', async () => {
+    const input = {
+      '@context': ['https://w3id.org/ro/crate/1.1/context', {
+        instrument: 'https://example.org/instrument',
+        cameraUsed: 'https://schema.org/instrument',
+      }],
+      '@graph': [
+        { ...root, distribution: { '@id': '#download' } },
+        { '@id': '#acquisition', '@type': 'PhotographAction', result: { '@id': './' },
+          cameraUsed: { '@id': '#camera' }, instrument: { '@id': '#other' } },
+        { '@id': '#camera', '@type': 'Product', name: 'Survey camera' },
+        { '@id': '#other', '@type': 'Product', name: 'Unrelated camera' },
+        { '@id': '#download', '@type': 'DataDownload', name: 'Survey data', contentUrl: 'https://example.org/survey.csv' },
+      ],
+    }
+    const metadataBlocks = await service.buildMetadataBlocks(input)
+    expect(metadataBlocks.astrophysics.fields[0].value).toEqual(['Survey camera'])
+    expect(metadataBlocks.geospatial.fields[0].value).toEqual([expect.objectContaining({
+      geographicDistributionLinkLabel: expect.objectContaining({ value: 'Survey data' }),
+    })])
+    metadataBlocks.astrophysics.fields[0].value = ['Updated camera']
+    const { crate } = service.applyMetadataBlocksToRoCrate(input, { metadataBlocks })
+    expect(crate['@graph']).toEqual(input['@graph'].map(entity =>
+      entity['@id'] === '#camera' ? { ...entity, name: 'Updated camera' } : entity))
   })
 
   it('ignores unrelated actions and generic actions that happen to produce the dataset', async () => {

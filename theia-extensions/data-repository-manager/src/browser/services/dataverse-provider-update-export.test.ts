@@ -135,6 +135,10 @@ describe('Dataverse plugin update orchestration', () => {
         const plan = input.plan as Record<string, unknown>
         expect(plan.nativeLicensePayload).toEqual({ name: 'CC0 1.0' })
         expect(plan.datasetId).toBe(24)
+        expect(plan.changedFiles).toEqual([expect.objectContaining({
+          remoteFileId: '51',
+          remoteChecksum: { type: 'MD5', value: 'old' },
+        })])
         await service.handleProviderUpdateCheckpoint({
           operationId: 'operation-1',
           providerId: 'dataverse',

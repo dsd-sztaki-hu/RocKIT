@@ -244,7 +244,8 @@ const CRATE_SCHEMA_TERMS = ['Dataset', 'Person', 'Organization', 'PropertyValue'
   'name', 'description', 'affiliation', 'identifier', 'propertyID', 'value', 'keywords', 'citation',
   'spatialCoverage', 'Place', 'City', 'State', 'Country', 'AdministrativeArea', 'isPartOf',
   'Periodical', 'PublicationVolume', 'PublicationIssue', 'ScholarlyArticle', 'Article',
-  'volumeNumber', 'issueNumber', 'pagination', 'Chapter', 'Book', 'Report', 'isbn', 'publisher']
+  'volumeNumber', 'issueNumber', 'datePublished', 'pagination', 'Chapter', 'Book', 'Report', 'isbn', 'publisher',
+  'PhotographAction', 'instrument', 'result', 'location', 'hasPart', 'DataDownload', 'distribution', 'contentUrl', '3DModel', 'Product']
 
 function schemaTerm(term: string, context: unknown[]): string | undefined {
   if (SCHEMA_IRI.test(term)) return term.replace(SCHEMA_IRI, '')
@@ -277,8 +278,13 @@ function schemaTerm(term: string, context: unknown[]): string | undefined {
   return iri && SCHEMA_IRI.test(iri) ? iri.replace(SCHEMA_IRI, '') : undefined
 }
 
-function schemaKey(entity: JsonObject, term: string, context: unknown[]): string | undefined {
-  return Object.keys(entity).find((key) => schemaTerm(key, [...context, ...values(entity['@context']).filter(item => item !== undefined)]) === term)
+export function schemaKey(entity: JsonObject, term: string, context: unknown[]): string | undefined {
+  return schemaKeys(entity, term, context)[0]
+}
+
+function schemaKeys(entity: JsonObject, term: string, context: unknown[]): string[] {
+  const localContext = [...context, ...values(entity['@context']).filter(item => item !== undefined)]
+  return Object.keys(entity).filter(key => schemaTerm(key, localContext) === term)
 }
 
 function schemaValue(entity: JsonObject, term: string, context: unknown[]): unknown {
@@ -286,13 +292,13 @@ function schemaValue(entity: JsonObject, term: string, context: unknown[]): unkn
   return key === undefined ? undefined : entity[key]
 }
 
-function schemaTypes(entity: JsonObject, context: unknown[]): string[] {
+export function schemaTypes(entity: JsonObject, context: unknown[]): string[] {
   const localContext = [...context, ...values(entity['@context']).filter(item => item !== undefined)]
   return entityTypes(entity).flatMap((type) => schemaTerm(type, localContext) ?? [])
 }
 
-function schemaLinks(entity: JsonObject, term: string, graph: JsonObject[], context: unknown[]): JsonObject[] {
-  const links = values(schemaValue(entity, term, context)).filter(isObject)
+export function schemaLinks(entity: JsonObject, term: string, graph: JsonObject[], context: unknown[]): JsonObject[] {
+  const links = schemaKeys(entity, term, context).flatMap(key => values(entity[key])).filter(isObject)
   return values(resolveReferences(links, graph)).filter(isObject)
 }
 
@@ -303,7 +309,7 @@ function schemaOwner(source: SchemaOrgSource, root: JsonObject, graph: JsonObjec
   return containerType ? schemaContainer(root, containerType, graph, context) : root
 }
 
-function schemaContainer(root: JsonObject, containerType: string, graph: JsonObject[], context: unknown[]): JsonObject | undefined {
+export function schemaContainer(root: JsonObject, containerType: string, graph: JsonObject[], context: unknown[]): JsonObject | undefined {
   const queue = schemaLinks(root, 'isPartOf', graph, context)
   const seen = new Set<JsonObject>([root])
   const matches: JsonObject[] = []
