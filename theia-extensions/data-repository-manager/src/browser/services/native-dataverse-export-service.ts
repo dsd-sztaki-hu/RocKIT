@@ -1293,28 +1293,35 @@ export class NativeDataverseExportService {
   }
 
   public async getDatasetCreationMetadataDefaults(
-    crosswalkId?: string,
+    crosswalkId?: string | null,
+    fallbackCrosswalkIds: readonly string[] = [],
   ): Promise<NativeDataverseDatasetMetadata> {
+    const defaults: NativeDataverseDatasetMetadata = {
+      title: '',
+      authorNames: [],
+      contactEmails: [],
+      descriptions: [],
+      subjects: [],
+    }
+    const crosswalkIds = new Set(crosswalkId === null
+      ? fallbackCrosswalkIds
+      : [crosswalkId, ...fallbackCrosswalkIds])
+    if (!crosswalkIds.size) return defaults
+
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const selectedCrosswalk = crosswalkId
-      ? await this.readSelectedCrosswalk(crosswalkId)
-      : undefined
-    if (crosswalkId && !selectedCrosswalk) {
-      return {
-        title: '',
-        authorNames: [],
-        contactEmails: [],
-        descriptions: [],
-        subjects: [],
-      }
+    const citationOnly = new Set(['citation'])
+    for (const id of crosswalkIds) {
+      const selectedCrosswalk = id ? await this.readSelectedCrosswalk(id) : undefined
+      const blocks = await this.metadataMappingService.buildMetadataBlocks(crate, citationOnly, selectedCrosswalk)
+      const mapped = this.datasetCreationMetadataFromCrosswalkBlocks(blocks)
+      defaults.title ||= mapped.title
+      if (!defaults.authorNames.length) defaults.authorNames = mapped.authorNames
+      if (!defaults.contactEmails.length) defaults.contactEmails = mapped.contactEmails
+      if (!defaults.descriptions.length) defaults.descriptions = mapped.descriptions
+      if (!defaults.subjects.length) defaults.subjects = mapped.subjects
     }
-    const blocks = await this.metadataMappingService.buildMetadataBlocks(
-      crate,
-      new Set(['citation']),
-      selectedCrosswalk,
-    )
-    return this.datasetCreationMetadataFromCrosswalkBlocks(blocks)
+    return defaults
   }
 
   public requiredDatasetCreationFields(): Set<string> {

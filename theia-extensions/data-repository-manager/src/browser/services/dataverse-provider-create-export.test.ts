@@ -6,6 +6,9 @@
 
 import URI from '@theia/core/lib/common/uri'
 
+import profileCrosswalk = require('../crosswalks/arp-dataverse-crosswalk.json')
+import schemaCrosswalk = require('../crosswalks/schema-org-dataverse-crosswalk.json')
+import { DataverseMetadataMappingService } from './dataverse-metadata-mapping-service'
 import {
   DataverseProviderCreateResult,
   NativeDataverseExportService,
@@ -124,6 +127,31 @@ function fixture() {
 }
 
 describe('Dataverse plugin create export completion', () => {
+  it('prefills gaps from the other bundled crosswalk and prefers the selected one', async () => {
+    const { service } = fixture()
+    const crosswalks = new Map<string, unknown>([
+      [profileCrosswalk.id, profileCrosswalk], [schemaCrosswalk.id, schemaCrosswalk],
+    ])
+    Object.assign(service, {
+      metadataMappingService: new DataverseMetadataMappingService(),
+      crosswalkRegistry: { read: async (id: string) => crosswalks.get(id) },
+      readRoCrate: async () => ({
+        '@context': 'https://w3id.org/ro/crate/1.1/context',
+        '@graph': [{
+          '@id': './', '@type': 'Dataset', title: 'Profile title', name: 'Schema.org name',
+          description: 'Schema.org description', subject: ['Other'],
+        }],
+      }),
+    })
+    const ids = [...crosswalks.keys()]
+    expect(await service.getDatasetCreationMetadataDefaults(profileCrosswalk.id, ids)).toMatchObject({
+      title: 'Profile title', descriptions: ['Schema.org description'], subjects: ['Other'],
+    })
+    expect(await service.getDatasetCreationMetadataDefaults(schemaCrosswalk.id, ids)).toMatchObject({
+      title: 'Schema.org name', descriptions: ['Schema.org description'], subjects: ['Other'],
+    })
+  })
+
   it('maps a known schema.org license into the Dataverse dataset version', async () => {
     const f = fixture()
     Object.assign(f.service, {

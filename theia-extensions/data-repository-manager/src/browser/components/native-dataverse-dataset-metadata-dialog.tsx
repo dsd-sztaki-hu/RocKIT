@@ -5,7 +5,7 @@
 // ******************************************************************************************
 
 import { AbstractDialog, Message } from '@theia/core/lib/browser'
-import { Input, Select } from 'antd'
+import { Alert, Input, Select } from 'antd'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
 import { nls } from '@theia/core/lib/common/nls'
@@ -68,9 +68,13 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
   private subjectOptions: string[]
   private crosswalks: CrosswalkRegistryEntry[]
   private crosswalkIdValue: string
+  private readonly loadDefaults?: (crosswalkId: string | null) => Promise<NativeDataverseDatasetMetadata>
+  private defaultsRequest = 0
+  private loadingDefaults = false
+  private defaultsError = false
 
   constructor(
-    defaults: NativeDataverseDatasetMetadata,
+    private defaults: NativeDataverseDatasetMetadata,
     options: {
       title?: string
       metadataLanguageOptions?: Array<{ value: string; label: string }>
@@ -79,6 +83,7 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
       subjectOptions?: string[]
       crosswalks?: CrosswalkRegistryEntry[]
       defaultCrosswalkId?: string
+      loadDefaults?: (crosswalkId: string | null) => Promise<NativeDataverseDatasetMetadata>
     } = {},
   ) {
     super({
@@ -113,6 +118,7 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
       this.metadataLanguageOptions[0]?.value ??
       ''
     this.crosswalks = options.crosswalks ?? []
+    this.loadDefaults = options.loadDefaults
     this.crosswalkIdValue =
       options.defaultCrosswalkId ??
       (this.crosswalks.length === 1 ? this.crosswalks[0].id : '')
@@ -146,6 +152,7 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
 
   protected isValid(_value: NativeDataverseDatasetMetadataDialogResult | undefined): boolean {
     return (
+      !this.loadingDefaults && !this.defaultsError &&
       (!this.requiredCitationFields.has('title') || !!this.titleValue.trim()) &&
       (!this.requiredCitationFields.has('author') || this.lines(this.authorNamesValue).length > 0) &&
       (!this.requiredCitationFields.has('datasetContact') || this.lines(this.contactEmailsValue).length > 0) &&
@@ -196,12 +203,17 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
                 })),
               ]}
               popupClassName="native-dv-metadata__select-dropdown"
-              onChange={(value) => {
-                this.crosswalkIdValue = value
-                this.refresh()
-              }}
+              loading={this.loadingDefaults}
+              onChange={(value) => void this.changeCrosswalk(value)}
             />
           </label>
+          {this.defaultsError ? <Alert
+            type="error"
+            message={nls.localize(
+              'rockit/dataRepository/crosswalkDefaultsFailed',
+              'Could not load metadata defaults for this crosswalk.',
+            )}
+          /> : undefined}
           {this.requiredCitationFields.has('title') ? this.renderInput(
             nls.localize('rockit/dataRepository/metadataTitle', 'Title'),
             this.titleValue,
@@ -330,6 +342,51 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
     )
   }
 
+  protected async changeCrosswalk(value: string): Promise<void> {
+    this.crosswalkIdValue = value
+    if (!this.loadDefaults) {
+      this.refresh()
+      return
+    }
+    const request = ++this.defaultsRequest
+    this.loadingDefaults = true
+    this.defaultsError = false
+    this.refresh()
+    try {
+      const next = await this.loadDefaults(value || null)
+      if (request === this.defaultsRequest) this.applyDefaults(next)
+    } catch (error) {
+      if (request === this.defaultsRequest) {
+        console.warn('Could not load Dataverse metadata defaults.', error)
+        this.defaultsError = true
+      }
+    } finally {
+      if (request === this.defaultsRequest) {
+        this.loadingDefaults = false
+        this.refresh()
+      }
+    }
+  }
+
+  private applyDefaults(next: NativeDataverseDatasetMetadata): void {
+    const previous = this.defaults
+    if (this.titleValue === previous.title) this.titleValue = next.title
+    if (this.authorNamesValue === previous.authorNames.join('\n')) {
+      this.authorNamesValue = next.authorNames.join('\n')
+    }
+    if (this.contactEmailsValue === previous.contactEmails.join('\n')) {
+      this.contactEmailsValue = next.contactEmails.join('\n')
+    }
+    if (this.descriptionsValue === previous.descriptions.join('\n')) {
+      this.descriptionsValue = next.descriptions.join('\n')
+    }
+    const previousSubject = previous.subjects.find(subject => this.subjectOptions.includes(subject)) ?? ''
+    if (this.subjectValue === previousSubject) {
+      this.subjectValue = next.subjects.find(subject => this.subjectOptions.includes(subject)) ?? ''
+    }
+    this.defaults = next
+  }
+
   protected refresh(): void {
     this.render()
     this.update()
@@ -341,6 +398,7 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
   }
 
   protected onBeforeDetach(msg: Message): void {
+    this.defaultsRequest += 1
     if (this.reactRoot) {
       this.reactRoot.unmount()
       this.reactRoot = undefined

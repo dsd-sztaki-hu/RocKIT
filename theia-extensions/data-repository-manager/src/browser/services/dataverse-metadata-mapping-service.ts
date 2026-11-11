@@ -73,6 +73,7 @@ interface DataverseCrosswalkChild {
 
 interface DataverseCrosswalkMapping {
     direction?: string;
+    schemaOrgOnly?: boolean;
     schemaOrgJournalLink?: string;
     requiredExportChild?: string;
     source?: { canonicalCandidates?: DataverseSourceCandidate[] };
@@ -333,6 +334,7 @@ export class DataverseMetadataMappingService {
                 }
                 return updated;
             }
+            if (mapping.schemaOrgOnly) return false;
         }
 
         const candidates = this.reverseSourceCandidates(mapping.source?.canonicalCandidates, typeName);
@@ -354,6 +356,11 @@ export class DataverseMetadataMappingService {
             return true;
         }
         const existingEntities = this.reverseLinkedEntities(root, graph, source);
+        if (mapping.schemaOrgOnly &&
+            (!this.hasMeaningfulValue(sourceValue) && !existingEntities.length ||
+                rows.length !== Math.max(sourceItems.length, existingEntities.length))) {
+            return false;
+        }
         const childMappings = new Map(
             (mapping.children ?? [])
                 .filter(child => this.isExecutableMapping(child.mappingStatus))
@@ -373,6 +380,7 @@ export class DataverseMetadataMappingService {
             }
             let entity = this.resolveEntities(original, graph)[0] ?? existingEntities[index];
             if (!entity) {
+                if (mapping.schemaOrgOnly) return;
                 const baseId = this.generatedEntityId(root, typeName, index);
                 let id = baseId;
                 let suffix = 1;
@@ -597,7 +605,6 @@ export class DataverseMetadataMappingService {
         const keys = [property, ...(schemaTerm
             ? [`http://schema.org/${schemaTerm}`, `https://schema.org/${schemaTerm}`, `schema:${schemaTerm}`, schemaTerm]
             : []), localName].filter((key): key is string => !!key);
-        if (localName === 'datasetContact') keys.push('contactPoint');
         return keys.find(key => Object.prototype.hasOwnProperty.call(entity, key)) ??
             localName ?? (schemaTerm || property);
     }
@@ -816,7 +823,9 @@ export class DataverseMetadataMappingService {
         mapping: DataverseCrosswalkMapping,
         context: unknown[] = []
     ): RoCrateEntity[] {
-        const candidates = this.sourceCandidates(mapping.source?.canonicalCandidates, typeName);
+        const candidates = mapping.schemaOrgOnly
+            ? mapping.source?.canonicalCandidates ?? []
+            : this.sourceCandidates(mapping.source?.canonicalCandidates, typeName);
         for (const source of candidates) {
             const raw = this.readSourceValue(root, graph, source, true, false, context);
             if (source.linkedEntityType) {
@@ -838,7 +847,8 @@ export class DataverseMetadataMappingService {
                 }
                 return this.resolveEntities(value, graph);
             });
-            const legacy = source === candidates[0] ? this.collectCompoundEntities(root, graph, typeName) : [];
+            const legacy = !mapping.schemaOrgOnly && source === candidates[0]
+                ? this.collectCompoundEntities(root, graph, typeName) : [];
             entities.push(...this.reverseLinkedEntities(root, graph, source));
             const combined = this.uniqueEntitiesById([...entities, ...legacy])
                 .filter(entity => this.hasRequiredSourceProperty(entity, graph, source));

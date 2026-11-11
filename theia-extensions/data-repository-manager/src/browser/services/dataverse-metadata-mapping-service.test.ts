@@ -6,8 +6,19 @@
 
 import { DataverseMetadataMappingService } from './dataverse-metadata-mapping-service'
 
-describe('Dataverse journal metadata from a cited Schema.org article', () => {
+import schemaCrosswalk = require('../crosswalks/schema-org-dataverse-crosswalk.json')
+
+const schemaMapper = () => {
   const service = new DataverseMetadataMappingService()
+  return {
+    buildMetadataBlocks: (crate: Record<string, unknown>) => service.buildMetadataBlocks(crate, undefined, schemaCrosswalk),
+    applyMetadataBlocksToRoCrate: (crate: Record<string, unknown>, metadata: Record<string, unknown>) =>
+      service.applyMetadataBlocksToRoCrate(crate, metadata, schemaCrosswalk),
+  }
+}
+
+describe('Dataverse journal metadata from a cited Schema.org article', () => {
+  const service = schemaMapper()
   const root = {
     '@id': './', '@type': 'Dataset', datePublished: '2026-11-10',
     citation: ['https://example.org/reference', { '@id': '#article' }],
@@ -48,7 +59,7 @@ describe('Dataverse journal metadata from a cited Schema.org article', () => {
 })
 
 it('exports typed Dataset distributions with download links and skips them on reverse mapping', async () => {
-  const service = new DataverseMetadataMappingService()
+  const service = schemaMapper()
   const schema = 'https://schema.org/'
   const link = 'https://example.org/dataset.zip'
   const download = { '@id': '#download', '@type': schema + 'DataDownload', [schema + 'contentUrl']: link }
@@ -81,7 +92,7 @@ it('exports typed Dataset distributions with download links and skips them on re
 })
 
 describe('Dataverse astronomy acquisition metadata', () => {
-  const service = new DataverseMetadataMappingService()
+  const service = schemaMapper()
   const schema = 'https://schema.org/'
   const name = schema + 'name'
   const photo = {
@@ -173,7 +184,7 @@ describe('Dataverse astronomy acquisition metadata', () => {
 })
 
 describe('Dataverse collection frequency', () => {
-  const service = new DataverseMetadataMappingService()
+  const service = schemaMapper()
   const field = 'https://dataverse.org/schema/socialscience/frequencyOfDataCollection'
   const frequency = 'https://schema.org/repeatFrequency'
   const crate = (type = 'https://schema.org/Schedule') => ({
@@ -401,7 +412,9 @@ describe('Dataverse schema.org review and role-scoped names', () => {
     ['datasetContact', 'datasetContactName', '#contact', '#author'],
   ])('reverse maps %s names only to their referenced entity', (role, child, selectedId, otherId) => {
     const input = roleCrate()
-    const result = service.applyMetadataBlocksToRoCrate(input, version(field(role, child, 'Updated')))
+    input['@graph'][0].contactPoint = input['@graph'][0].datasetContact
+    delete input['@graph'][0].datasetContact
+    const result = schemaMapper().applyMetadataBlocksToRoCrate(input, version(field(role, child, 'Updated')))
     const graph = graphOf(result.crate)
     expect(graph.find(item => item['@id'] === selectedId)?.name).toBe('Updated')
     expect(graph.find(item => item['@id'] === otherId)?.name).toBe('Same display name')
@@ -462,12 +475,12 @@ describe('Dataverse schema.org review and role-scoped names', () => {
       { '@id': '#author', '@type': 'Person', name: 'Author',
         '@reverse': { author: { '@id': './' } } },
       { '@id': '#contact', '@type': 'Person', name: 'Contact', email: 'contact@example.org',
-        '@reverse': { datasetContact: { '@id': './' } } },
+        '@reverse': { contactPoint: { '@id': './' } } },
     ] }
-    const blocks = await service.buildMetadataBlocks(input)
+    const blocks = await schemaMapper().buildMetadataBlocks(input)
     expect(blocks.citation.fields.filter(item => ['author', 'datasetContact'].includes(item.typeName)))
       .toHaveLength(2)
-    const result = service.applyMetadataBlocksToRoCrate(input, version(field('author', 'authorName', 'Updated')))
+    const result = schemaMapper().applyMetadataBlocksToRoCrate(input, version(field('author', 'authorName', 'Updated')))
     expect(graphOf(result.crate).find(item => item['@id'] === '#author')?.name).toBe('Updated')
     expect(graphOf(result.crate).find(item => item['@id'] === '#contact')?.name).toBe('Contact')
   })
@@ -476,7 +489,7 @@ describe('Dataverse schema.org review and role-scoped names', () => {
     const input = roleCrate()
     input['@graph'][0].contactPoint = input['@graph'][0].datasetContact
     delete input['@graph'][0].datasetContact
-    const result = service.applyMetadataBlocksToRoCrate(input,
+    const result = schemaMapper().applyMetadataBlocksToRoCrate(input,
       version(field('datasetContact', 'datasetContactName', 'Updated contact')))
     const graph = graphOf(result.crate)
     expect(graph.find(item => item['@id'] === '#contact')?.name).toBe('Updated contact')
@@ -486,9 +499,11 @@ describe('Dataverse schema.org review and role-scoped names', () => {
 
   it('rejects conflicting values for one entity shared by author and contact roles', () => {
     const input = roleCrate()
-    input['@graph'][0].datasetContact = { '@id': '#author' }
+    input['@graph'][0].contactPoint = input['@graph'][0].datasetContact
+    delete input['@graph'][0].datasetContact
+    input['@graph'][0].contactPoint = { '@id': '#author' }
     const original = JSON.stringify(input)
-    expect(() => service.applyMetadataBlocksToRoCrate(input, version(
+    expect(() => schemaMapper().applyMetadataBlocksToRoCrate(input, version(
       field('author', 'authorName', 'Author name'),
       field('datasetContact', 'datasetContactName', 'Contact name'),
     ))).toThrow("Conflicting Dataverse values for entity '#author' property 'name'")
@@ -497,8 +512,10 @@ describe('Dataverse schema.org review and role-scoped names', () => {
 
   it('allows identical values for one entity shared by both roles', () => {
     const input = roleCrate()
-    input['@graph'][0].datasetContact = { '@id': '#author' }
-    const result = service.applyMetadataBlocksToRoCrate(input, version(
+    input['@graph'][0].contactPoint = input['@graph'][0].datasetContact
+    delete input['@graph'][0].datasetContact
+    input['@graph'][0].contactPoint = { '@id': '#author' }
+    const result = schemaMapper().applyMetadataBlocksToRoCrate(input, version(
       field('author', 'authorName', 'Shared name'),
       field('datasetContact', 'datasetContactName', 'Shared name'),
     ))
@@ -506,7 +523,7 @@ describe('Dataverse schema.org review and role-scoped names', () => {
   })
 
   it('uses Dataset name as the title fallback without mapping aliases, inLanguage, or structured keywords', async () => {
-    const blocks = await service.buildMetadataBlocks({ '@graph': [
+    const blocks = await schemaMapper().buildMetadataBlocks({ '@graph': [
       { '@id': './', '@type': 'Dataset', name: 'Display name', alternateName: 'Alias',
         inLanguage: 'en', keywords: [{ '@id': '#term' }, 'https://example.org/term'] },
       { '@id': '#term', '@type': 'DefinedTerm', name: 'Term',
@@ -518,14 +535,17 @@ describe('Dataverse schema.org review and role-scoped names', () => {
   })
 
   it('keeps the explicit title ahead of the Dataset name fallback', async () => {
-    const blocks = await service.buildMetadataBlocks({ '@graph': [
+    const crate = { '@graph': [
       { '@id': './', '@type': 'Dataset', title: 'Citation title', name: 'Workspace name' },
-    ] })
-    expect(blocks.citation.fields.find(item => item.typeName === 'title')?.value).toBe('Citation title')
+    ] }
+    const profileBlocks = await service.buildMetadataBlocks(crate)
+    const schemaBlocks = await schemaMapper().buildMetadataBlocks(crate)
+    expect(profileBlocks.citation.fields.find(item => item.typeName === 'title')?.value).toBe('Citation title')
+    expect(schemaBlocks.citation.fields.find(item => item.typeName === 'title')?.value).toBe('Workspace name')
   })
 
   it('maps schema.org identifiers, citations, places, and only emailed authors as contact points', async () => {
-    const blocks = await service.buildMetadataBlocks({ '@graph': [
+    const blocks = await schemaMapper().buildMetadataBlocks({ '@graph': [
       { '@id': './', '@type': 'Dataset', author: [{ '@id': '#emailed' }, { '@id': '#other' }],
         citation: 'https://example.org/citation', spatialCoverage: { '@id': '#place' } },
       { '@id': '#emailed', '@type': 'Person', name: 'Contact Author', email: 'author@example.org',
@@ -553,7 +573,7 @@ describe('Dataverse schema.org review and role-scoped names', () => {
   })
 
   it('prefers an explicit contact and excludes author contacts without a valid email', async () => {
-    const blocks = await service.buildMetadataBlocks({ '@graph': [
+    const blocks = await schemaMapper().buildMetadataBlocks({ '@graph': [
       { '@id': './', '@type': 'Dataset', author: { '@id': '#author' }, contactPoint: { '@id': '#contact' } },
       { '@id': '#author', '@type': 'Person', name: 'Author', email: 'invalid' },
       { '@id': '#contact', '@type': 'ContactPoint', name: 'Repository contact', email: 'contact@example.org' },
@@ -564,7 +584,7 @@ describe('Dataverse schema.org review and role-scoped names', () => {
   })
 
   it('keeps native language and plain text keywords', async () => {
-    const blocks = await service.buildMetadataBlocks({ '@graph': [
+    const blocks = await schemaMapper().buildMetadataBlocks({ '@graph': [
       { '@id': './', '@type': 'Dataset', language: ['English'], keywords: ['water', 'climate'] },
     ] })
     expect(blocks.citation.fields.find(item => item.typeName === 'language')?.value).toEqual(['English'])
@@ -585,11 +605,11 @@ describe('Dataverse schema.org review and role-scoped names', () => {
       { '@id': './', '@type': 'Dataset', 'https://schema.org/language': { '@id': '#language' } },
       { '@id': '#language', '@type': 'Language', name: 'English' },
     ] }
-    const blocks = await service.buildMetadataBlocks(input)
+    const blocks = await schemaMapper().buildMetadataBlocks(input)
     const language = blocks.citation.fields.find(item => item.typeName === 'language')!
     expect(language.value).toEqual(['English'])
     language.value = ['Hungarian']
-    const result = service.applyMetadataBlocksToRoCrate(input, { metadataBlocks: blocks })
+    const result = schemaMapper().applyMetadataBlocksToRoCrate(input, { metadataBlocks: blocks })
     expect(graphOf(result.crate)[0]['https://schema.org/language']).toEqual({ '@id': '#language' })
     expect(graphOf(result.crate)[1].name).toBe('Hungarian')
   })
@@ -599,7 +619,7 @@ describe('Dataverse schema.org review and role-scoped names', () => {
       { '@id': './', '@type': 'Dataset', author: { '@id': '#author' } },
       { '@id': '#author', '@type': 'Person', 'https://schema.org/name': 'Author' },
     ] }
-    const result = service.applyMetadataBlocksToRoCrate(input, version(field('author', 'authorName', 'Updated')))
+    const result = schemaMapper().applyMetadataBlocksToRoCrate(input, version(field('author', 'authorName', 'Updated')))
     expect(graphOf(result.crate)[1]).toEqual({
       '@id': '#author', '@type': 'Person', 'https://schema.org/name': 'Updated',
     })
@@ -620,13 +640,13 @@ describe('Dataverse schema.org review and role-scoped names', () => {
     const input = { '@graph': [
       { '@id': './', '@type': 'Dataset', description: 'Summary' },
     ] }
-    const blocks = await service.buildMetadataBlocks(input)
-    const result = service.applyMetadataBlocksToRoCrate(input, { metadataBlocks: blocks })
-    expect(await service.buildMetadataBlocks(result.crate)).toEqual(blocks)
+    const blocks = await schemaMapper().buildMetadataBlocks(input)
+    const result = schemaMapper().applyMetadataBlocksToRoCrate(input, { metadataBlocks: blocks })
+    expect(await schemaMapper().buildMetadataBlocks(result.crate)).toEqual(blocks)
   })
 
   it('keeps place names but omits temporal, journal publication-date and coordinate conversions', async () => {
-    const blocks = await service.buildMetadataBlocks({ '@graph': [
+    const blocks = await schemaMapper().buildMetadataBlocks({ '@graph': [
       { '@id': './', '@type': 'Dataset', temporalCoverage: '2020/2021', datePublished: '2022-01-01',
         spatialCoverage: { '@id': '#place' }, journalVolumeIssue: { '@id': '#journal' } },
       { '@id': '#place', '@type': 'Place', name: 'Coverage label', geo: { '@id': '#box' } },

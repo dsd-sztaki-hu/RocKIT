@@ -19,7 +19,9 @@ const linkmlDirectory = path.join(root, 'linkml');
 const crosswalksDirectory = path.resolve(root, '..', 'crosswalks');
 const splitOutputPaths = {
     dataverse: path.join(crosswalksDirectory, 'arp-dataverse-crosswalk.json'),
-    zenodo: path.join(crosswalksDirectory, 'arp-zenodo-crosswalk.json')
+    zenodo: path.join(crosswalksDirectory, 'arp-zenodo-crosswalk.json'),
+    schemaDataverse: path.join(crosswalksDirectory, 'schema-org-dataverse-crosswalk.json'),
+    schemaZenodo: path.join(crosswalksDirectory, 'schema-org-zenodo-crosswalk.json')
 };
 
 const sourcePaths = {
@@ -29,7 +31,9 @@ const sourcePaths = {
     zenodo: path.join(sourcesDirectory, 'zenodo-schema.json'),
     arpMappings: path.join(sourcesDirectory, 'arp-to-canonical.json'),
     dataverseMappings: path.join(sourcesDirectory, 'canonical-to-dataverse.json'),
-    zenodoDecisions: path.join(sourcesDirectory, 'zenodo-mapping-decisions.json')
+    zenodoDecisions: path.join(sourcesDirectory, 'zenodo-mapping-decisions.json'),
+    schemaDataverse: path.join(sourcesDirectory, 'schema-org-to-dataverse.json'),
+    schemaZenodo: path.join(sourcesDirectory, 'schema-org-to-zenodo.json')
 };
 
 const linkmlPaths = {
@@ -266,6 +270,28 @@ function buildSplitCrosswalks(crosswalk) {
         transformationLibrary: crosswalk.transformationLibrary,
         validationAndReporting: crosswalk.validationAndReporting
     };
+    function schemaCrosswalk(repository, suffix, mappingKey, sourcePath) {
+        const mapping = readJson(sourcePath);
+        const errors = [];
+        validateUniqueIds(`Schema.org-to-${repository} crosswalk`, mapping.mappings, errors);
+        const arpMappings = crosswalk.crosswalks[mappingKey].mappings;
+        for (const entry of mapping.mappings) {
+            if (!arpMappings.some(candidate => candidate.id === entry.id &&
+                candidate.target.field === entry.target.field && candidate.target.block === entry.target.block)) {
+                errors.push(`Schema.org crosswalk targets an unknown field: ${entry.id}.`);
+            }
+        }
+        if (errors.length) throw new Error(errors.join('\n'));
+        return {
+            id: `schema-org-${repository}`,
+            name: `Schema.org - ${suffix}`,
+            displayName: `Schema.org RO-Crate to ${repository === 'dataverse' ? 'Dataverse' : 'Zenodo'}`,
+            ...common,
+            repositories: { [repository]: crosswalk.repositories[repository] },
+            crosswalks: { [mappingKey]: mapping },
+            coverage: { [`${repository}Mappings`]: mapping.mappings.length }
+        };
+    }
     return {
         dataverse: {
             id: 'arp-dataverse',
@@ -316,7 +342,9 @@ function buildSplitCrosswalks(crosswalk) {
                 zenodoNeedsReview: crosswalk.coverage.zenodoNeedsReview,
                 zenodoRepositorySpecific: crosswalk.coverage.zenodoRepositorySpecific
             }
-        }
+        },
+        schemaDataverse: schemaCrosswalk('dataverse', 'DV', 'canonicalToDataverse', sourcePaths.schemaDataverse),
+        schemaZenodo: schemaCrosswalk('zenodo', 'Zenodo', 'canonicalToZenodo', sourcePaths.schemaZenodo)
     };
 }
 

@@ -26,6 +26,7 @@ interface SourceCandidate {
   entityClass?: string
   property?: string
   localName?: string
+  schemaOrg?: boolean
 }
 
 interface MappingOperation extends JsonObject {
@@ -245,7 +246,8 @@ const CRATE_SCHEMA_TERMS = ['Dataset', 'Person', 'Organization', 'PropertyValue'
   'spatialCoverage', 'Place', 'City', 'State', 'Country', 'AdministrativeArea', 'isPartOf',
   'Periodical', 'PublicationVolume', 'PublicationIssue', 'ScholarlyArticle', 'Article',
   'volumeNumber', 'issueNumber', 'datePublished', 'pagination', 'Chapter', 'Book', 'Report', 'isbn', 'publisher',
-  'PhotographAction', 'instrument', 'result', 'location', 'hasPart', 'DataDownload', 'distribution', 'contentUrl', '3DModel', 'Product']
+  'PhotographAction', 'instrument', 'result', 'location', 'hasPart', 'DataDownload', 'distribution', 'contentUrl', '3DModel', 'Product',
+  'license', 'language']
 
 function schemaTerm(term: string, context: unknown[]): string | undefined {
   if (SCHEMA_IRI.test(term)) return term.replace(SCHEMA_IRI, '')
@@ -344,12 +346,9 @@ function schemaCreator(entity: JsonObject, graph: JsonObject[], context: unknown
   const organization = schemaLinks(entity, 'affiliation', graph, context)
     .find(item => schemaTypes(item, context).includes('Organization'))
   return Object.fromEntries(Object.entries({
-    name: schemaText(entity.authorName)[0] ?? schemaText(schemaValue(entity, 'name', context))[0],
-    affiliation: schemaText(entity.authorAffiliation)[0] ??
-      (organization && schemaText(schemaValue(organization, 'name', context))[0]),
-    orcid: schemaText(entity.authorIdentifierScheme)[0]?.toLowerCase() === 'orcid'
-      ? schemaText(entity.authorIdentifier)[0] ?? schemaOrcid(entity, graph, context)
-      : schemaOrcid(entity, graph, context),
+    name: schemaText(schemaValue(entity, 'name', context))[0],
+    affiliation: organization && schemaText(schemaValue(organization, 'name', context))[0],
+    orcid: schemaOrcid(entity, graph, context),
   }).filter(([, value]) => hasMeaningfulValue(value)))
 }
 
@@ -375,11 +374,8 @@ function readSchemaOrgSource(source: SchemaOrgSource, owner: JsonObject, graph: 
     return organization ? schemaText(schemaValue(organization, 'name', context))[0] ?? EMPTY : EMPTY
   }
   if (source.shape === 'creators') {
-    const linked = schemaLinks(owner, source.property, graph, context)
-    if (!linked.some(entity => isSchemaCreator(entity, context))) return EMPTY
-    return linked
-      .filter(entity => isSchemaCreator(entity, context) ||
-        entityTypes(entity).includes('author'))
+    return schemaLinks(owner, source.property, graph, context)
+      .filter(entity => isSchemaCreator(entity, context))
       .map(entity => schemaCreator(entity, graph, context))
       .filter(entity => !!entity.name)
   }
@@ -446,25 +442,12 @@ function updateSchemaOrgSource(
     const name = schemaText(row.name)[0]
     const orcid = schemaText(row.orcid)[0]?.replace(/^https?:\/\/orcid\.org\//i, '')
     const matches = linked.filter(entity => {
-      if (!isSchemaCreator(entity, context) && !entityTypes(entity).includes('author')) return false
+      if (!isSchemaCreator(entity, context)) return false
       const creator = schemaCreator(entity, graph, context)
       return orcid && creator.orcid ? creator.orcid === orcid : !!name && creator.name === name
     })
     if (matches.length !== 1) continue
     const entity = matches[0]
-    if (entityTypes(entity).includes('author') && !isSchemaCreator(entity, context)) {
-      const [updatedName] = schemaText(row.name)
-      const [affiliation] = schemaText(row.affiliation)
-      if (updatedName && Object.prototype.hasOwnProperty.call(entity, 'authorName')) {
-        entity.authorName = updatedName
-        updated = true
-      }
-      if (affiliation && Object.prototype.hasOwnProperty.call(entity, 'authorAffiliation')) {
-        entity.authorAffiliation = affiliation
-        updated = true
-      }
-      continue
-    }
     updated = updateSchemaText(entity, 'name', row.name, context) || updated
     const organizations = schemaLinks(entity, 'affiliation', graph, context)
       .filter(item => schemaTypes(item, context).includes('Organization'))
@@ -479,6 +462,7 @@ function candidateValue(
   candidate: SourceCandidate,
   root: JsonObject,
   graph: JsonObject[],
+  context: unknown[],
 ): MappingValue {
   const localName = candidate.localName
   if (!localName) {
@@ -488,7 +472,7 @@ function candidateValue(
     candidate.property === '@type' && localName === 'upload_type' ? '@type' : localName
 
   if (candidate.entity === 'root' || !candidate.entity) {
-    const direct = root[propertyName]
+    const direct = candidate.schemaOrg ? schemaValue(root, localName, context) : root[propertyName]
     return hasMeaningfulValue(direct) ? direct : EMPTY
   }
 
@@ -524,12 +508,13 @@ function selectSourceValue(
   mapping: ZenodoMapping,
   root: JsonObject,
   graph: JsonObject[],
+  context: unknown[],
 ): MappingValue {
   for (const candidate of mapping.source?.canonicalCandidates ?? []) {
     if (shouldSkipExportSource(mapping, candidate)) {
       continue
     }
-    const value = candidateValue(candidate, root, graph)
+    const value = candidateValue(candidate, root, graph, context)
     if (hasMeaningfulValue(value)) {
       return value
     }
@@ -788,16 +773,19 @@ function setRootValue(
   candidate: SourceCandidate,
   value: unknown,
   mapping: ZenodoMapping,
+  context: unknown[],
 ): boolean {
   if (!candidate.localName || !hasMeaningfulValue(value)) {
     return false
   }
+  const key = candidate.schemaOrg ? schemaKey(root, candidate.localName, context) : candidate.localName
+  if (!key) return false
   const nextValue = mapping.transformations.some(
     (operation) => operation.operation === 'mapVocabulary',
   )
     ? inverseVocabularyValue(value, mapping)
     : value
-  root[candidate.localName] =
+  root[key] =
     candidate.localName === 'license' &&
     typeof nextValue === 'string' &&
     /^https?:\/\//i.test(nextValue)
@@ -1342,7 +1330,7 @@ export function buildZenodoMetadataFromCrosswalk(
       continue
     }
 
-    let value = executable ? selectSourceValue(mapping, root, graph) : EMPTY
+    let value = executable ? selectSourceValue(mapping, root, graph, context) : EMPTY
     let defaulted = false
     for (const operation of executable ? mapping.transformations : []) {
       const before = value
@@ -1408,12 +1396,17 @@ export function applyZenodoMetadataToRoCrate(
 
   const updatedFields: string[] = []
   const context = nextCrate['@context'] === undefined ? [] : [nextCrate['@context']]
-  if (
-    updateDescriptionEntities(root, graph, collectZenodoDescriptionTexts(zenodoMetadata))
-  ) {
+  const mappings = activeCrosswalk.crosswalks.canonicalToZenodo.mappings
+  const descriptions = collectZenodoDescriptionTexts(zenodoMetadata)
+  const descriptionMapping = mappings.find(mapping => mapping.target.field === 'description')
+  const descriptionSource = descriptionMapping && firstWritableCandidate(descriptionMapping)
+  const descriptionUpdated = descriptionMapping && descriptionSource?.schemaOrg
+    ? setRootValue(root, descriptionSource, descriptions[0], descriptionMapping, context)
+    : updateDescriptionEntities(root, graph, descriptions)
+  if (descriptionUpdated) {
     updatedFields.push('description')
   }
-  for (const mapping of activeCrosswalk.crosswalks.canonicalToZenodo.mappings) {
+  for (const mapping of mappings) {
     if (mapping.direction !== 'both' ||
       (mapping.mappingStatus === 'repositorySpecific' && !mapping.schemaOrgSources?.length)) {
       continue
@@ -1435,7 +1428,7 @@ export function applyZenodoMetadataToRoCrate(
       continue
     }
     const schemaSource = selectedSchemaOrgSource(mapping, root, graph, context)
-    const nativeSource = mapping.mappingStatus === 'mapped' && hasMeaningfulValue(selectSourceValue(mapping, root, graph))
+    const nativeSource = mapping.mappingStatus === 'mapped' && hasMeaningfulValue(selectSourceValue(mapping, root, graph, context))
     if (schemaSource && (!nativeSource || schemaSource.source.shape === 'creators')) {
       if (updateSchemaOrgSource(schemaSource.source, schemaSource.owner, graph, context, remoteValue)) {
         updatedFields.push(mapping.target.field)
@@ -1462,6 +1455,7 @@ export function applyZenodoMetadataToRoCrate(
             candidate,
             reverseScalarValue(remoteValue, mapping),
             mapping,
+            context,
           )
         }
         break

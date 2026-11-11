@@ -11,6 +11,7 @@ import {
   zenodoMetadataOptions,
 } from 'crosswalk-manager/lib/browser/zenodo-crosswalk-engine'
 import registeredCrosswalk = require('./crosswalks/arp-zenodo-crosswalk.json')
+import schemaCrosswalk = require('./crosswalks/schema-org-zenodo-crosswalk.json')
 
 const minimalCrate = (): Record<string, unknown> => ({
   '@context': 'https://w3id.org/ro/crate/1.1/context',
@@ -27,7 +28,7 @@ const minimalCrate = (): Record<string, unknown> => ({
 
 describe('application repository crosswalk engine', () => {
   it('maps an RO-Crate root dataset to repository metadata', () => {
-    const result = buildZenodoMetadataFromCrosswalk(minimalCrate(), registeredCrosswalk)
+    const result = buildZenodoMetadataFromCrosswalk(minimalCrate(), schemaCrosswalk)
 
     expect(result.metadata).toMatchObject({
       title: 'Example dataset',
@@ -36,6 +37,33 @@ describe('application repository crosswalk engine', () => {
       upload_type: 'dataset',
       access_right: 'open',
     })
+  })
+
+  it('selects the profile or Schema.org title, description and keywords independently', () => {
+    const crate = {
+      '@context': 'https://w3id.org/ro/crate/1.1/context',
+      '@graph': [
+        {
+          '@id': './', '@type': 'Dataset', title: 'ARP title', name: 'Schema.org name',
+          dsDescription: { '@id': '#arp-description' }, description: 'Schema.org description',
+          keyword: 'ARP keyword', keywords: 'Schema.org keyword', language: 'eng',
+        },
+        { '@id': '#arp-description', '@type': 'dsDescription', dsDescriptionValue: 'ARP description' },
+      ],
+    }
+    expect(buildZenodoMetadataFromCrosswalk(crate, registeredCrosswalk).metadata).toMatchObject({
+      title: 'ARP title', description: 'ARP description', keywords: ['ARP keyword'],
+    })
+    const metadata = buildZenodoMetadataFromCrosswalk(crate, schemaCrosswalk).metadata
+    expect(metadata).toMatchObject({
+      title: 'Schema.org name', description: 'Schema.org description', keywords: ['Schema.org keyword'], language: 'eng',
+    })
+    const { crate: updated } = applyZenodoMetadataToRoCrate(
+      crate, { description: 'Updated Schema.org description' }, schemaCrosswalk,
+    )
+    expect(updated['@graph']).toEqual([
+      { ...crate['@graph'][0], description: 'Updated Schema.org description' }, crate['@graph'][1],
+    ])
   })
 
   it('derives requirements and options from the registered crosswalk', () => {
@@ -120,7 +148,7 @@ describe('application repository crosswalk engine', () => {
         { '@id': '#place', '@type': 'City', name: 'Budapest', description: 'Study area', latitude: 47.5 },
       ],
     }
-    const { metadata } = buildZenodoMetadataFromCrosswalk(crate, registeredCrosswalk)
+    const { metadata } = buildZenodoMetadataFromCrosswalk(crate, schemaCrosswalk)
     expect(metadata).toMatchObject({
       creators: [{ name: 'Ada Lovelace', affiliation: 'Research Institute', orcid }, { name: 'Other Author' }],
       keywords: ['metadata'], references: ['A published reference'], method: 'Sample counting',
@@ -132,7 +160,7 @@ describe('application repository crosswalk engine', () => {
       creators: [{ name: 'Updated Ada', orcid }],
       keywords: ['schema.org'], method: 'Updated method',
       locations: [{ place: 'Budapest', description: 'Updated area' }],
-    }, registeredCrosswalk)
+    }, schemaCrosswalk)
     expect(updated['@graph']).toMatchObject([
       { tags: ['schema.org'], measurementMethod: 'Updated method' },
       { name: 'Updated Ada' },
@@ -153,12 +181,12 @@ describe('application repository crosswalk engine', () => {
         { '@id': '#other', '@type': 'PublicationVolume', volumeNumber: '999' },
       ],
     }
-    const { metadata } = buildZenodoMetadataFromCrosswalk(crate, registeredCrosswalk)
+    const { metadata } = buildZenodoMetadataFromCrosswalk(crate, schemaCrosswalk)
     expect(metadata).toMatchObject({
       upload_type: 'publication', publication_type: 'article',
       journal_issue: '2', journal_volume: '5', journal_title: 'Journal of Examples', journal_pages: '25–30',
     })
-    const { crate: updated } = applyZenodoMetadataToRoCrate(crate, { journal_issue: '3' }, registeredCrosswalk)
+    const { crate: updated } = applyZenodoMetadataToRoCrate(crate, { journal_issue: '3' }, schemaCrosswalk)
     expect(updated['@graph']).toMatchObject([
       { '@id': './' }, { issueNumber: '3' }, { volumeNumber: '5' }, { name: 'Journal of Examples' }, { volumeNumber: '999' },
     ])
@@ -173,14 +201,14 @@ describe('application repository crosswalk engine', () => {
         { '@id': '#press', '@type': 'Organization', name: 'Academic Press' },
       ],
     }
-    const { metadata } = buildZenodoMetadataFromCrosswalk(crate, registeredCrosswalk)
+    const { metadata } = buildZenodoMetadataFromCrosswalk(crate, schemaCrosswalk)
     expect(metadata).toMatchObject({
       upload_type: 'publication', publication_type: 'section', partof_title: 'Parent book',
       partof_pages: '10–20', imprint_isbn: '978-0-00-000000-0', imprint_publisher: 'Academic Press',
     })
     const { crate: updated } = applyZenodoMetadataToRoCrate(crate, {
       partof_pages: '10–21', imprint_publisher: 'Updated Press',
-    }, registeredCrosswalk)
+    }, schemaCrosswalk)
     expect(updated['@graph']).toMatchObject([
       { pagination: '10–21' }, { name: 'Parent book' }, { name: 'Updated Press' },
     ])

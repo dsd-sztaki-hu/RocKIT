@@ -27,7 +27,7 @@ class_derivations:
         description: "repositorySpecific: No verified canonical semantic property
           exists; a Zenodo-specific IRI is not invented."
       conference_acronym:
-        populated_from: conferenceAcronym
+        expr: None
         description: "needsReview: zenodo.conference_acronym"
       conference_dates:
         populated_from: timePeriodCoveredStart
@@ -36,7 +36,7 @@ class_derivations:
         populated_from: productionPlace
         description: "needsReview: zenodo.conference_place"
       conference_session:
-        populated_from: conferenceSession
+        expr: None
         description: "repositorySpecific: zenodo.conference_session"
       conference_session_part:
         expr: None
@@ -67,7 +67,7 @@ class_derivations:
         populated_from: grantNumber
         description: "mapped: zenodo.grants"
       image_type:
-        populated_from: additionalType
+        expr: None
         description: "needsReview: zenodo.image_type"
       imprint_isbn:
         populated_from: otherId
@@ -83,7 +83,7 @@ class_derivations:
         populated_from: journalIssue
         description: "mapped: zenodo.journal_issue"
       journal_pages:
-        populated_from: pagination
+        expr: None
         description: "repositorySpecific: zenodo.journal_pages"
       journal_title:
         populated_from: publicationCitation
@@ -104,7 +104,7 @@ class_derivations:
         populated_from: notesText
         description: "mapped: zenodo.notes"
       partof_pages:
-        populated_from: pagination
+        expr: None
         description: "repositorySpecific: zenodo.partof_pages"
       partof_title:
         populated_from: seriesName
@@ -113,7 +113,7 @@ class_derivations:
         populated_from: datePublished
         description: "mapped: zenodo.publication_date"
       publication_type:
-        populated_from: publicationType
+        populated_from: publicationRelationType
         description: "needsReview: zenodo.publication_type"
       references:
         populated_from: otherReferences

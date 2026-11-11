@@ -788,7 +788,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         id: 'crosswalkId',
         label: nls.localize('rockit/dataRepository/crosswalk', 'Metadata Crosswalk'),
         type: 'select',
-        defaultValue: crosswalks[0]?.id ?? noCrosswalkValue,
+        defaultValue: crosswalks.length === 1 ? crosswalks[0].id : noCrosswalkValue,
         helpText: nls.localize(
           'rockit/dataRepository/crosswalkHelp',
           'A metadata crosswalk translates RO-Crate metadata into the fields expected by the repository. The selected crosswalk is saved with this export and reused for later updates and synchronization.',
@@ -1279,13 +1279,19 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.providerService,
       ).open()
       if (!selection) return
-      const defaults =
-        await this.nativeExportService.getDatasetCreationMetadataDefaults(crosswalks[0]?.id)
+      const fallbackCrosswalkIds = crosswalks
+        .filter((crosswalk) => crosswalk.builtIn && crosswalk.repositories?.includes('dataverse'))
+        .map((crosswalk) => crosswalk.id)
+      const loadDefaults = (crosswalkId: string | null) =>
+        this.nativeExportService.getDatasetCreationMetadataDefaults(crosswalkId, fallbackCrosswalkIds)
+      const defaultCrosswalkId = crosswalks.length === 1 ? crosswalks[0].id : undefined
+      const defaults = await loadDefaults(defaultCrosswalkId ?? null)
       const uploadOptions = await new NativeDataverseDatasetMetadataDialog(defaults, {
         requiredCitationFields: this.nativeExportService.requiredDatasetCreationFields(),
         subjectOptions: this.nativeExportService.datasetCreationSubjectOptions(),
         crosswalks,
-        defaultCrosswalkId: crosswalks[0]?.id,
+        defaultCrosswalkId,
+        loadDefaults,
       }).open()
       if (!uploadOptions) return
       const metadataBlockResult = await this.providerService.executeForRepository<

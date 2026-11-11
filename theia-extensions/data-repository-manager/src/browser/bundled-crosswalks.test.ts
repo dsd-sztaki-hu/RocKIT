@@ -54,11 +54,13 @@ describe('Bundled repository crosswalks', () => {
 
   beforeEach(() => jest.clearAllMocks())
 
-  it('lists and resolves both defaults on a fresh install without copying files', async () => {
+  it('lists and resolves all bundled crosswalks on a fresh install without copying files', async () => {
     const { store, files } = setup()
     const entries = await store.list()
 
-    expect(entries.map(entry => entry.id).sort()).toEqual(['arp-dataverse', 'arp-zenodo'])
+    expect(entries.map(entry => entry.id).sort()).toEqual([
+      'arp-dataverse', 'arp-zenodo', 'schema-org-dataverse', 'schema-org-zenodo',
+    ])
     expect(entries.every(entry => entry.builtIn && entry.ruleCount! > 0)).toBe(true)
     for (const bundled of BUNDLED_REPOSITORY_CROSSWALKS) {
       expect(await store.read(bundled.document.id)).toEqual(bundled.document)
@@ -106,6 +108,6 @@ describe('Bundled repository crosswalks', () => {
     await store.delete('custom')
     expect(deleteFile).toHaveBeenCalledTimes(1)
     expect(await store.read('custom')).toBeUndefined()
-    expect(await store.list()).toHaveLength(2)
+    expect(await store.list()).toHaveLength(BUNDLED_REPOSITORY_CROSSWALKS.length)
   })
 })

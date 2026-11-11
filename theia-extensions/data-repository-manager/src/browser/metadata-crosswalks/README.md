@@ -43,7 +43,9 @@ Its versioned inputs are:
 - `sources/arp-to-canonical.json`: ARP-to-RO-Crate mapping decisions;
 - `sources/canonical-to-dataverse.json`: RO-Crate-to-Dataverse decisions;
 - `sources/zenodo-mapping-decisions.json`: one explicit decision for every
-  Zenodo field;
+  Zenodo field in the ARP crosswalk;
+- `sources/schema-org-to-dataverse.json` and `sources/schema-org-to-zenodo.json`:
+  mappings for crates using Schema.org metadata;
 - `sources/crosswalk-base.json`: format, transformation vocabulary,
   provenance, and reporting policy;
 - `linkml/*.yaml`: source and target LinkML schemas plus the declarative
@@ -51,10 +53,9 @@ Its versioned inputs are:
 
 ### Dataverse schema.org candidates
 
-`canonical-to-dataverse.json` records the reviewed schema.org equivalents
-alongside the existing native candidates. Its `schemaOrgReview` entries
+`schema-org-to-dataverse.json` records the reviewed Schema.org mappings.
+Its `schemaOrgReview` entries
 explain accepted relationships, exclusions, and supported value formats.
-Candidates are tried in order, with existing native values taking priority.
 The Dataverse runtime reads compact terms, `schema:` terms, and HTTP/HTTPS
 schema.org IRIs, and follows inline objects and graph references.
 
@@ -62,21 +63,20 @@ Candidate `valueProperty` reads a scalar from a linked object, such as an
 affiliation's name. `literalField`
 places a scalar description or keyword into the named Dataverse compound
 child. `textOnly` limits keywords to plain text, excluding structured terms
-and URIs. Temporal-coverage conversions, journal publication-date inference,
-and coordinate conversions are excluded by user review.
+and URIs. Journal publication dates are read from the linked publication issue
+or volume. Temporal-coverage and coordinate conversions are excluded by user review.
 
 Reverse mapping updates the existing source representation when present.
-If the local crate has no corresponding source property, the first native
-candidate remains the default. These decisions apply to the Dataverse
-mapping section.
+The ARP crosswalk can create native entities for incoming compound fields.
+The Schema.org crosswalk updates existing linked entities.
 
 Names are resolved within the author or contact relationship on the root
 Dataset. Unlinked entities are excluded even if their type or name matches.
 Conflicting values for a shared entity property stop reverse mapping.
 An explicit author/contact name takes priority over the generic display
 name. Reverse mapping preserves an existing display name even when the
-old strings were equal. The root Dataset `name` is a fallback for the
-Dataverse title when the explicit title is absent. Newly created native
+old strings were equal. The Schema.org crosswalk maps the root Dataset
+`name` to the Dataverse title. Newly created native
 entities receive an initial display name.
 
 An explicit Dataverse contact or schema.org `contactPoint` has priority.
@@ -144,11 +144,13 @@ linkml-map validate-spec `
 
 The generated runtime files are:
 
-- `../crosswalks/arp-dataverse-crosswalk.json`: ARP / RO-Crate to Dataverse;
-- `../crosswalks/arp-zenodo-crosswalk.json`: ARP / RO-Crate to Zenodo.
+- `../crosswalks/arp-dataverse-crosswalk.json` for ARP profile metadata to Dataverse
+- `../crosswalks/arp-zenodo-crosswalk.json` for ARP profile metadata to Zenodo
+- `../crosswalks/schema-org-dataverse-crosswalk.json` for Schema.org metadata to Dataverse
+- `../crosswalks/schema-org-zenodo-crosswalk.json` for Schema.org metadata to Zenodo
 
 Each file includes a machine-readable `id`, a display `name`, and a longer
-`displayName` for future user-selectable crosswalks.
+`displayName`. RocKIT registers these four crosswalks for selection during export.
 
 ### Structure tree
 
