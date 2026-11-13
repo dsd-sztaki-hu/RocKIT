@@ -14,9 +14,9 @@ export const ROCKIT_DOCUMENTATION_PAGES = {
   WORKSPACE_AND_FILE_HANDLING: 'interface/workspace-and-file-handling',
   RO_CRATE_STRUCTURE_PANEL: 'interface/ro-crate-structure-panel',
   ENTITIES_PANEL: 'interface/entities-panel',
-  RO_CRATE_EDITOR: 'editing/ro-crate-editor',
-  METADATA_PROFILE_MANAGER: 'schemas/metadata-profile-manager',
-  DATA_REPOSITORY_MANAGER: 'repositories/data-repository-manager',
+  RO_CRATE_EDITOR: 'interface/ro-crate-editor',
+  METADATA_PROFILE_MANAGER: 'interface/metadata-profile-manager',
+  DATA_REPOSITORY_MANAGER: 'preview-export/data-repository-manager',
   REPOSITORY_EXPORT_IMPORT:
     'preview-export/repository-export-import#export%C3%A1l%C3%A1s-repozit%C3%B3riumba',
   VALIDATION: 'editing/validation',
