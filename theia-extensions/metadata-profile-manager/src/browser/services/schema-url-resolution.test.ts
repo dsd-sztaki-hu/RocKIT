@@ -12,6 +12,21 @@ import {
 } from 'rockit-common/lib/common/schema-url-resolution'
 
 describe('schema URL resolution helpers', () => {
+  it.each(['', '   ', '\n\t'])(
+    'returns no fetch candidates for a blank schema reference %#',
+    (input) => {
+      expect(buildSchemaFetchCandidates(input)).toEqual([])
+    },
+  )
+
+  it('trims schema references before deriving candidates', () => {
+    expect(buildSchemaFetchCandidates('  https://example.org/schema/123  ')).toEqual([
+      'https://example.org/schema/123',
+      'https://example.org/templates/123',
+      'https://resource.example.org/templates/https%3A%2F%2Fexample.org%2Fschema%2F123',
+    ])
+  })
+
   it('derives candidates from a resolved openview redirect target', () => {
     const url = 'https://w3id.org/arp/schema/33677b82-7973-3e4c-b09d-b5189e095627'
     const redirectUrl =
@@ -124,5 +139,29 @@ describe('schema URL resolution helpers', () => {
     ).toBe(
       'https://repo.schema.researchdata.hu/templates/640c3586-5db2-3a81-a681-c008cf7404fe',
     )
+  })
+
+  it.each([
+    'not a URL',
+    'https://openview.example.org/no-template-reference',
+    'https://openview.example.org/templates/%E0%A4%A',
+  ])('returns undefined for malformed template reference %s', (value) => {
+    expect(decodeTemplateReference(value)).toBeUndefined()
+  })
+
+  it('does not mutate provider configuration while normalizing candidates', () => {
+    const provider = {
+      baseUrl: 'https://schema.example.org/',
+      domainBase: 'schema.example.org',
+      resourceBaseUrl: 'https://resource.example.org/',
+    }
+    const snapshot = JSON.stringify(provider)
+
+    const first = buildSchemaFetchCandidates('https://w3id.org/example/schema/123', provider)
+    const second = buildSchemaFetchCandidates('https://w3id.org/example/schema/123', provider)
+
+    expect(provider).toEqual(JSON.parse(snapshot))
+    expect(second).toEqual(first)
+    expect(new Set(first).size).toBe(first.length)
   })
 })

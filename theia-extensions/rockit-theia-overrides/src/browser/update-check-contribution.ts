@@ -74,10 +74,12 @@ export class UpdateCheckContribution
   protected activeDialog: UpdateCheckDialog | undefined
   protected notifyAtStartup = true
 
-  onStart(): void {
+  async onStart(): Promise<void> {
     if (!environment.electron.is()) {
       return
     }
+
+    await this.preferenceService.ready
 
     this.notifyAtStartup = this.preferenceService.get<boolean>(
       ROCKIT_UPDATE_NOTIFY_AT_STARTUP,

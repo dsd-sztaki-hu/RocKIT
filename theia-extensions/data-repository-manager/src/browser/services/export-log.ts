@@ -63,8 +63,9 @@ export function normalizeExportLogEntries(value: unknown): ExportLogEntry[] {
             target,
             repository,
             mappingFile,
-            crosswalkFile: latest.crosswalkFile
-                ?? optionalString(record.crosswalkFile)
+            crosswalkFile: Object.prototype.hasOwnProperty.call(record, 'crosswalkFile')
+                ? optionalString(record.crosswalkFile)
+                : latest.crosswalkFile
                 ?? previous?.crosswalkFile,
             datasetName: optionalString(record.datasetName) ?? previous?.datasetName,
             status: latest.status,

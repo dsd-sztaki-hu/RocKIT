@@ -11,19 +11,7 @@
       "id": "zenodo.access_conditions",
       "direction": "both",
       "source": {
-        "canonicalCandidates": [
-          {
-            "entity": "root",
-            "entityClass": "Dataset",
-            "property": "https://dataverse.org/schema/citation/accessToSources",
-            "localName": "accessToSources",
-            "block": "citation",
-            "valueTypes": [
-              "TextArea"
-            ],
-            "multiple": false
-          }
-        ],
+        "canonicalCandidates": [],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -60,37 +48,16 @@
         }
       ],
       "onMissing": {
-        "action": "errorWhenConditionMatches",
-        "condition": {
-          "field": "access_right",
-          "equals": "restricted"
-        }
+        "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "unmappedReason": "Access policy is supplied on export and preserved on update."
     },
     {
       "id": "zenodo.access_right",
       "direction": "both",
       "source": {
-        "canonicalCandidates": [
-          {
-            "entity": "root",
-            "property": "https://schema.org/conditionsOfAccess",
-            "localName": "conditionsOfAccess",
-            "block": "canonical"
-          },
-          {
-            "entity": "root",
-            "entityClass": "Dataset",
-            "property": "https://dataverse.org/schema/citation/accessToSources",
-            "localName": "accessToSources",
-            "block": "citation",
-            "valueTypes": [
-              "TextArea"
-            ],
-            "multiple": false
-          }
-        ],
+        "canonicalCandidates": [],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -127,10 +94,10 @@
         }
       ],
       "onMissing": {
-        "action": "error",
-        "message": "Zenodo requires metadata.access_right."
+        "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "unmappedReason": "Access policy is supplied on export and preserved on update."
     },
     {
       "id": "zenodo.communities",
@@ -177,14 +144,7 @@
       "id": "zenodo.conference_acronym",
       "direction": "both",
       "source": {
-        "canonicalCandidates": [
-          {
-            "entity": "publication",
-            "property": "https://schema.org/alternateName",
-            "localName": "conferenceAcronym",
-            "block": "canonical"
-          }
-        ],
+        "canonicalCandidates": [],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -218,7 +178,8 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "unmappedReason": "No equivalent ARP profile field."
     },
     {
       "id": "zenodo.conference_dates",
@@ -343,14 +304,7 @@
       "id": "zenodo.conference_session",
       "direction": "both",
       "source": {
-        "canonicalCandidates": [
-          {
-            "entity": "publication",
-            "property": "https://schema.org/subEvent",
-            "localName": "conferenceSession",
-            "block": "canonical"
-          }
-        ],
+        "canonicalCandidates": [],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -384,7 +338,8 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "unmapped unless a repository-specific canonical property is present"
+      "lossiness": "unmapped unless a repository-specific canonical property is present",
+      "unmappedReason": "No equivalent ARP profile field."
     },
     {
       "id": "zenodo.conference_session_part",
@@ -625,12 +580,6 @@
               "author"
             ],
             "multiple": true
-          },
-          {
-            "entity": "root",
-            "property": "https://schema.org/author",
-            "localName": "author",
-            "block": "canonical"
           }
         ],
         "selection": "firstNonEmpty"
@@ -716,12 +665,6 @@
               "Text"
             ],
             "multiple": true
-          },
-          {
-            "entity": "root",
-            "property": "https://schema.org/description",
-            "localName": "description",
-            "block": "canonical"
           }
         ],
         "selection": "firstNonEmpty"
@@ -782,12 +725,6 @@
               "otherId"
             ],
             "multiple": true
-          },
-          {
-            "entity": "root",
-            "property": "https://schema.org/identifier",
-            "localName": "identifier",
-            "block": "canonical"
           }
         ],
         "selection": "firstNonEmpty"
@@ -966,14 +903,7 @@
       "id": "zenodo.image_type",
       "direction": "both",
       "source": {
-        "canonicalCandidates": [
-          {
-            "entity": "root",
-            "property": "https://schema.org/additionalType",
-            "localName": "additionalType",
-            "block": "canonical"
-          }
-        ],
+        "canonicalCandidates": [],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -1015,13 +945,10 @@
         }
       ],
       "onMissing": {
-        "action": "errorWhenConditionMatches",
-        "condition": {
-          "field": "upload_type",
-          "equals": "image"
-        }
+        "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "unmappedReason": "No equivalent ARP profile field."
     },
     {
       "id": "zenodo.imprint_isbn",
@@ -1140,6 +1067,30 @@
       "lossiness": "possible; mapping requires review for the active profile"
     },
     {
+      "id": "zenodo.imprint_publisher",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.imprint_publisher",
+        "field": "imprint_publisher",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/imprint_publisher"
+      },
+      "mappingStatus": "repositorySpecific",
+      "transformations": [],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "Imprint publisher is not exported without a verified semantic equivalent.",
+      "unmappedReason": "No verified canonical source identifies the publication imprint publisher; a dataset producer is not assumed to be its publisher."
+    },
+    {
       "id": "zenodo.journal_issue",
       "direction": "both",
       "source": {
@@ -1195,14 +1146,7 @@
       "id": "zenodo.journal_pages",
       "direction": "both",
       "source": {
-        "canonicalCandidates": [
-          {
-            "entity": "publication",
-            "property": "https://schema.org/pagination",
-            "localName": "pagination",
-            "block": "canonical"
-          }
-        ],
+        "canonicalCandidates": [],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -1236,7 +1180,8 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "unmapped unless a repository-specific canonical property is present"
+      "lossiness": "unmapped unless a repository-specific canonical property is present",
+      "unmappedReason": "No equivalent ARP profile field."
     },
     {
       "id": "zenodo.journal_title",
@@ -1253,12 +1198,6 @@
               "TextArea"
             ],
             "multiple": false
-          },
-          {
-            "entity": "publication",
-            "property": "https://schema.org/isPartOf",
-            "localName": "journalTitle",
-            "block": "canonical"
           }
         ],
         "selection": "firstNonEmpty"
@@ -1432,12 +1371,6 @@
               "Select"
             ],
             "multiple": true
-          },
-          {
-            "entity": "root",
-            "property": "https://schema.org/inLanguage",
-            "localName": "inLanguage",
-            "block": "canonical"
           }
         ],
         "selection": "firstNonEmpty"
@@ -1637,14 +1570,7 @@
       "id": "zenodo.partof_pages",
       "direction": "both",
       "source": {
-        "canonicalCandidates": [
-          {
-            "entity": "publication",
-            "property": "https://schema.org/pagination",
-            "localName": "pagination",
-            "block": "canonical"
-          }
-        ],
+        "canonicalCandidates": [],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -1678,7 +1604,8 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "unmapped unless a repository-specific canonical property is present"
+      "lossiness": "unmapped unless a repository-specific canonical property is present",
+      "unmappedReason": "No equivalent ARP profile field."
     },
     {
       "id": "zenodo.partof_title",
@@ -1695,12 +1622,6 @@
               "Text"
             ],
             "multiple": false
-          },
-          {
-            "entity": "root",
-            "property": "https://schema.org/isPartOf",
-            "localName": "isPartOf",
-            "block": "canonical"
           }
         ],
         "selection": "firstNonEmpty"
@@ -1793,12 +1714,6 @@
       "direction": "both",
       "source": {
         "canonicalCandidates": [
-          {
-            "entity": "root",
-            "property": "https://schema.org/additionalType",
-            "localName": "publicationType",
-            "block": "canonical"
-          },
           {
             "entity": "publication",
             "entityClass": "publication",
@@ -2287,12 +2202,6 @@
               "Text"
             ],
             "multiple": false
-          },
-          {
-            "entity": "root",
-            "property": "https://schema.org/name",
-            "localName": "name",
-            "block": "canonical"
           }
         ],
         "selection": "firstNonEmpty"
@@ -2404,12 +2313,6 @@
               "Text"
             ],
             "multiple": false
-          },
-          {
-            "entity": "root",
-            "property": "https://schema.org/version",
-            "localName": "version",
-            "block": "canonical"
           }
         ],
         "selection": "firstNonEmpty"
@@ -2670,47 +2573,7 @@
       "id": "zenodo.method",
       "direction": "both",
       "source": {
-        "canonicalCandidates": [
-          {
-            "entity": "root",
-            "property": "https://schema.org/measurementTechnique",
-            "localName": "measurementTechnique",
-            "block": "canonical"
-          },
-          {
-            "entity": "root",
-            "entityClass": "Dataset",
-            "property": "https://dataverse.org/schema/socialscience/samplingProcedure",
-            "localName": "samplingProcedure",
-            "block": "socialscience",
-            "valueTypes": [
-              "TextArea"
-            ],
-            "multiple": false
-          },
-          {
-            "entity": "root",
-            "entityClass": "Dataset",
-            "property": "https://dataverse.org/schema/socialscience/collectionMode",
-            "localName": "collectionMode",
-            "block": "socialscience",
-            "valueTypes": [
-              "TextArea"
-            ],
-            "multiple": true
-          },
-          {
-            "entity": "root",
-            "entityClass": "Dataset",
-            "property": "https://dataverse.org/schema/socialscience/researchInstrument",
-            "localName": "researchInstrument",
-            "block": "socialscience",
-            "valueTypes": [
-              "Text"
-            ],
-            "multiple": false
-          }
-        ],
+        "canonicalCandidates": [],
         "selection": "firstNonEmpty"
       },
       "target": {
@@ -2748,7 +2611,8 @@
       "onMissing": {
         "action": "omit"
       },
-      "lossiness": "possible; mapping requires review for the active profile"
+      "lossiness": "possible; mapping requires review for the active profile",
+      "unmappedReason": "The browser crosswalk reads the Schema.org measurementMethod directly from the Dataset."
     }
   ]
 }

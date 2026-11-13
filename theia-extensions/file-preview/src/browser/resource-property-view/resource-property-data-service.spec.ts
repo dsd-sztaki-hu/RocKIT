@@ -83,6 +83,10 @@ describe('resource-property-data-service', () => {
       expect(resourcePropertyDataService.canHandleSelection(undefined)).eq(0)
     })
 
+    it('should not handle an empty file selection', () => {
+        expect(resourcePropertyDataService.canHandleSelection([])).eq(0)
+    })
+
     it('should handle a file selection', () => {
       expect(
         resourcePropertyDataService.canHandleSelection(fileSelection),
@@ -121,6 +125,15 @@ describe('resource-property-data-service', () => {
     it('should return undefined if the selection is undefined', async () => {
       const data = await resourcePropertyDataService.providePropertyData(undefined)
       expect(data).to.equal(undefined)
+    })
+
+    it('should return undefined when a navigatable has no resource URI', async () => {
+        const selection: Navigatable = {
+            getResourceUri: () => undefined,
+            createMoveToUri: () => undefined,
+        }
+
+        expect(await resourcePropertyDataService.providePropertyData(selection)).to.equal(undefined)
     })
   })
 })

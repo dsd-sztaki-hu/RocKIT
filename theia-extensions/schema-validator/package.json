@@ -15,15 +15,15 @@
     "src"
   ],
   "dependencies": {
-    "@theia/core": "1.65.2",
+    "@theia/core": "1.76.0",
     "rockit-common": "1.0.0",
     "app-state": "0.0.1",
     "ro-crate-editor": "1.0.0"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
-    "typescript": "~5.4.5",
-    "@testing-library/react": "^14.0.0",
+    "typescript": "~5.9.3",
+    "@testing-library/react": "^16.3.0",
     "@types/jest": "^29.5.0",
     "jest": "^29.5.0",
     "jest-environment-jsdom": "^29.5.0",

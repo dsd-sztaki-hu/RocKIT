@@ -63,6 +63,14 @@ assert.ok(
     zenodoMappings.some(mapping => mapping.mappingStatus === 'repositorySpecific'),
     'Repository-specific/unmappable fields must remain explicit.'
 );
+for (const mapping of zenodoMappings.filter(mapping => !mapping.source?.canonicalCandidates?.length)) {
+    assert.ok(mapping.unmappedReason, `${mapping.id} must explain why it is unmapped.`);
+    assert.strictEqual(mapping.onMissing.action, 'omit', `${mapping.id} must allow omission.`);
+    const slot = transformSlots[mapping.target.field];
+    assert.strictEqual(slot.expr, 'None', `${mapping.id} must produce no LinkML value.`);
+    assert.strictEqual(slot.populated_from, undefined, `${mapping.id} must not copy an unrelated field.`);
+    assert.strictEqual(slot.value, undefined, `${mapping.id} must not invent a constant value.`);
+}
 assert.strictEqual(
     zenodoCrosswalk.coverage.zenodoMappings,
     zenodoProperties.length,

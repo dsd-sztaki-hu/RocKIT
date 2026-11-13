@@ -9,7 +9,9 @@ const test = require('node:test')
 
 const {
   chooseMcpServerName,
+  getOpenCodeMcpConfigFormat,
   hasRememberedMcpSetting,
+  forgetMcpKeepSetting,
   mcpServerMatches,
   mcpServerUsesSocket,
   parseMcpServerEntries,
@@ -70,6 +72,35 @@ test('normalizes OpenCode command arrays and JSON MCP servers', () => {
   assert.equal(mcpServerUsesSocket(jsonEntries[0], socketPath, false), true)
 })
 
+test('reads native OpenCode V2 servers and gives them precedence over V1 entries', () => {
+  const v2Command = ['node', 'v2-server.js', '--connect', socketPath]
+  const content = JSON.stringify({
+    mcp: {
+      rocrate: { command: ['node', 'v1-server.js', '--connect', socketPath] },
+      servers: {
+        rocrate: { type: 'local', command: v2Command, disabled: false },
+        other: { type: 'local', command: ['other-mcp'] },
+      },
+    },
+  })
+  const entries = parseMcpServerEntries(content, 'json', 'opencode')
+
+  assert.equal(getOpenCodeMcpConfigFormat(content), 'v2')
+  assert.deepEqual(entries.map((entry) => entry.name), ['rocrate', 'other'])
+  assert.equal(entries[0].command, 'node')
+  assert.deepEqual(entries[0].args, v2Command.slice(1))
+  assert.equal(
+    getOpenCodeMcpConfigFormat(JSON.stringify({ mcp: { rocrate: {} } })),
+    'v1',
+  )
+
+  const v1NamedServers = JSON.stringify({
+    mcp: { servers: { type: 'local', command: ['legacy-server'] } },
+  })
+  assert.equal(getOpenCodeMcpConfigFormat(v1NamedServers), 'v1')
+  assert.equal(parseMcpServerEntries(v1NamedServers, 'json', 'opencode')[0].name, 'servers')
+})
+
 test('chooses a free alongside name', () => {
   assert.equal(chooseMcpServerName(['rocrate', 'rockitmcp', 'rockitmcp2']), 'rockitmcp3')
 })
@@ -110,4 +141,22 @@ test('remembers keep decisions by exact configuration snapshot', () => {
     }),
     false,
   )
+})
+
+test('replaces and forgets only the matching remembered configuration decision', () => {
+  const baseSetting = {
+    agentId: 'codex',
+    configPath: '/tmp/config.toml',
+    kind: 'toml',
+    serverName: 'rockitmcp',
+    signature: 'first',
+  }
+  const otherSetting = { ...baseSetting, serverName: 'other', signature: 'other' }
+  const stored = rememberMcpKeepSetting(
+    rememberMcpKeepSetting([otherSetting], baseSetting),
+    { ...baseSetting, signature: 'updated' },
+  )
+
+  assert.deepEqual(stored, [otherSetting, { ...baseSetting, signature: 'updated' }])
+  assert.deepEqual(forgetMcpKeepSetting(stored, baseSetting), [otherSetting])
 })

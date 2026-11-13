@@ -21,28 +21,29 @@
     }
   ],
   "dependencies": {
-    "@theia/core": "1.65.2",
+    "@theia/core": "1.76.0",
     "antd": "^5.29.1",
     "@mui/material": "^5.15.0",
     "@mui/icons-material": "^5.15.0",
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
-    "@iqss/dataverse-client-javascript": "2.1.0",
     "jszip": "^3.10.1",
     "rockit-common": "1.0.0",
     "rockit-loadmask": "1.0.0",
     "app-state": "0.0.1",
-    "save-ro-crate": "1.0.0"
+    "crosswalk-manager": "1.0.0",
+    "save-ro-crate": "1.0.0",
+    "@mui/x-tree-view": "^7.29.10"
   },
   "devDependencies": {
-    "@testing-library/react": "^14.0.0",
+    "@testing-library/react": "^16.3.0",
     "@types/jest": "^29.5.0",
     "jest": "^29.5.0",
     "jest-environment-jsdom": "^29.5.0",
     "rimraf": "^5.0.0",
     "ts-jest": "^29.1.0",
     "ts-node": "^10.9.1",
-    "typescript": "~5.4.5",
+    "typescript": "~5.9.3",
     "yaml": "^1.10.2"
   },
   "scripts": {

@@ -3719,7 +3719,8 @@
         "action": "error",
         "message": "Dataverse requires citation.datasetContact."
       },
-      "lossiness": "none expected"
+      "lossiness": "none expected",
+      "requiredExportChild": "datasetContactEmail"
     },
     {
       "id": "dataverse.citation.dsDescription",

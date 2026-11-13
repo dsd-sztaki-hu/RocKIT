@@ -10,7 +10,7 @@
 import * as React from 'react';
 import { nls } from '@theia/core/lib/common/nls';
 import { useEffect, useState, useMemo } from 'react';
-import { TreeView } from '@mui/x-tree-view/TreeView';
+import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -415,7 +415,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
     nodes.map((node) => (
       <TreeItem
         key={node.id}
-        nodeId={node.id}
+        itemId={node.id}
         label={
             <div 
                 id={`cedar-node-${node.id}`}
@@ -447,20 +447,22 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
         sx={{
             color: 'var(--theia-foreground)',
             '& .MuiTreeItem-content': {
+                // Style MUI's full row so the expansion/icon gutter is selected too.
                 padding: 0,
-                width: 'fit-content !important',
+                width: '100%',
                 maxWidth: '100%',
                 '&.Mui-selected, &.Mui-selected.Mui-focused': {
-                    backgroundColor: 'transparent !important',
+                    backgroundColor: 'var(--theia-list-inactiveSelectionBackground, var(--theia-list-hoverBackground)) !important',
+                    color: 'var(--theia-list-inactiveSelectionForeground, var(--theia-foreground)) !important',
                 },
                 '&.Mui-selected:hover': {
-                    backgroundColor: 'transparent !important',
+                    backgroundColor: 'var(--theia-list-inactiveSelectionBackground, var(--theia-list-hoverBackground)) !important',
                 },
                 '&.Mui-focused:not(.Mui-selected)': {
                     backgroundColor: 'transparent !important', // No background on focus
                 },
-                '&:hover': {
-                    backgroundColor: 'transparent !important', // No background on hover
+                '&:hover:not(.Mui-selected)': {
+                    backgroundColor: 'var(--theia-list-hoverBackground) !important',
                     color: 'var(--theia-foreground)',
                 }
             },
@@ -473,22 +475,13 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                 borderRadius: '3px',
                 boxSizing: 'border-box',
             },
-            '& .MuiTreeItem-content.Mui-selected > .MuiTreeItem-label, & .MuiTreeItem-content.Mui-selected.Mui-focused > .MuiTreeItem-label': {
-                backgroundColor: 'rgba(24, 144, 255, 0.35) !important',
-                border: '1px solid rgba(24, 144, 255, 0.65)',
-                color: 'var(--theia-ui-font-color1) !important',
-                boxShadow: 'none',
-            },
-            '& .MuiTreeItem-content.Mui-selected:hover > .MuiTreeItem-label': {
-                backgroundColor: 'rgba(24, 144, 255, 0.45) !important',
-            },
         }}
       >
         {Array.isArray(node.children) && node.children.length > 0 
             ? renderTree(node.children) 
             : (
                 node.isFolder && !node.childrenLoaded 
-                    ? <TreeItem nodeId={node.id + "_dummy"} label="" sx={{ display: 'none' }} /> 
+                    ? <TreeItem itemId={node.id + "_dummy"} label="" sx={{ display: 'none' }} />
                     : null
             )
         }
@@ -588,13 +581,12 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
           )}
 
           {displayedNodes.length > 0 && (
-              <TreeView
-                defaultCollapseIcon={<ExpandMoreIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
-                defaultExpandIcon={<ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
-                expanded={expandedNodes}
-                onNodeToggle={handleToggle}
+              <SimpleTreeView
+                slots={{ collapseIcon: ExpandMoreIcon, expandIcon: ChevronRightIcon }}
+                expandedItems={expandedNodes}
+                onExpandedItemsChange={handleToggle}
                 multiSelect
-                selected={props.selectedTemplateIds}
+                selectedItems={props.selectedTemplateIds}
                 sx={{
                     flexGrow: 1,
                     outline: 'none',
@@ -602,7 +594,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                 }}
               >
                 {renderTree(displayedNodes)}
-              </TreeView>
+              </SimpleTreeView>
           )}
           
           {!isLoading && !errorMsg && displayedNodes.length === 0 && (

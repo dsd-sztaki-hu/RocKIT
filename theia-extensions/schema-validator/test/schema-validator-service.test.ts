@@ -164,4 +164,90 @@ describe('SchemaValidatorService', () => {
       ]),
     )
   })
+
+  it('returns cached errors when neither entities nor profiles changed', async () => {
+    const service = createService()
+    const crate = {
+      '@graph': [
+        {
+          '@id': '#contact',
+          '@type': 'datasetContact',
+          name: 'Ada Example',
+        },
+      ],
+    }
+
+    const initialErrors = await service.validateEntities(crate, profile)
+    const cachedErrors = await service.validateEntities(crate, profile)
+
+    expect((service as any).getLastRunMode()).toBe('cached')
+    expect(cachedErrors).toEqual(initialErrors)
+  })
+
+  it('replaces only targeted entity errors and preserves unrelated errors', async () => {
+    const service = createService()
+    const initialCrate = {
+      '@graph': [
+        { '@id': '#first', '@type': 'datasetContact', name: 'Ada Example' },
+        { '@id': '#second', '@type': 'datasetContact', name: 'Grace Example' },
+      ],
+    }
+
+    await service.validateEntities(initialCrate, profile)
+
+    const correctedCrate = {
+      '@graph': [
+        {
+          '@id': '#first',
+          '@type': 'datasetContact',
+          name: 'Ada Example',
+          datasetContactEmail: 'ada@example.test',
+        },
+        { '@id': '#second', '@type': 'datasetContact', name: 'Grace Example' },
+      ],
+    }
+
+    const errors = await service.validateEntitiesTargeted(
+      correctedCrate,
+      profile,
+      new Set(['#first']),
+    )
+
+    expect((service as any).getLastRunMode()).toBe('incremental')
+    expect(errors).toEqual([
+      expect.objectContaining({
+        entityId: '#second',
+        fieldName: 'datasetContactEmail',
+        errorCode: 'REQUIRED_NOT_SET',
+      }),
+    ])
+  })
+
+  it('aborts an older validation run before applying the latest result', async () => {
+    const service = createService()
+    const slowCrate = {
+      '@graph': Array.from({ length: 76 }, (_value, index) => ({
+        '@id': `#entity-${index}`,
+        '@type': 'Dataset',
+        name: `Entity ${index}`,
+      })),
+    }
+
+    const staleRun = service.validateEntities(slowCrate, profile)
+    const staleExpectation = expect(staleRun).rejects.toMatchObject({ name: 'AbortError' })
+    const latestErrors = await service.validateEntities(
+      { '@graph': [{ '@id': './', '@type': 'Dataset' }] },
+      profile,
+    )
+
+    await staleExpectation
+    expect(latestErrors).toEqual([
+      expect.objectContaining({
+        entityId: './',
+        fieldName: 'name',
+        errorCode: 'REQUIRED_NOT_SET',
+      }),
+    ])
+    expect((service as any).getLastRunMode()).toBe('full')
+  })
 })

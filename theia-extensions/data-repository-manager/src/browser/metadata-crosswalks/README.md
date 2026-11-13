@@ -43,11 +43,54 @@ Its versioned inputs are:
 - `sources/arp-to-canonical.json`: ARP-to-RO-Crate mapping decisions;
 - `sources/canonical-to-dataverse.json`: RO-Crate-to-Dataverse decisions;
 - `sources/zenodo-mapping-decisions.json`: one explicit decision for every
-  Zenodo field;
+  Zenodo field in the ARP crosswalk;
+- `sources/schema-org-to-dataverse.json` and `sources/schema-org-to-zenodo.json`:
+  mappings for crates using Schema.org metadata;
 - `sources/crosswalk-base.json`: format, transformation vocabulary,
   provenance, and reporting policy;
 - `linkml/*.yaml`: source and target LinkML schemas plus the declarative
   canonical-to-Zenodo transformation.
+
+### Dataverse schema.org candidates
+
+`schema-org-to-dataverse.json` records the reviewed Schema.org mappings.
+Its `schemaOrgReview` entries
+explain accepted relationships, exclusions, and supported value formats.
+The Dataverse runtime reads compact terms, `schema:` terms, and HTTP/HTTPS
+schema.org IRIs, and follows inline objects and graph references.
+
+Candidate `valueProperty` reads a scalar from a linked object, such as an
+affiliation's name. `literalField`
+places a scalar description or keyword into the named Dataverse compound
+child. `textOnly` limits keywords to plain text, excluding structured terms
+and URIs. Journal publication dates are read from the linked publication issue
+or volume. Temporal-coverage and coordinate conversions are excluded by user review.
+
+Reverse mapping updates the existing source representation when present.
+The ARP crosswalk can create native entities for incoming compound fields.
+The Schema.org crosswalk updates existing linked entities.
+
+Names are resolved within the author or contact relationship on the root
+Dataset. Unlinked entities are excluded even if their type or name matches.
+Conflicting values for a shared entity property stop reverse mapping.
+An explicit author/contact name takes priority over the generic display
+name. Reverse mapping preserves an existing display name even when the
+old strings were equal. The Schema.org crosswalk maps the root Dataset
+`name` to the Dataverse title. Newly created native
+entities receive an initial display name.
+
+An explicit Dataverse contact or schema.org `contactPoint` has priority.
+When neither exists, authors with a valid email address are exported as
+Dataverse contacts; authors without email are not. This fallback is
+export-only, so importing Dataverse metadata never rewrites an author
+relationship into a contact relationship. Linked schema.org `PropertyValue`
+author identifiers support ORCID-style scheme and value pairs. Scalar
+citations become related material, and a linked `Place.name` becomes other
+geographic coverage without guessing whether it is a country, state, or city.
+
+Dataverse licenses live outside metadata blocks. Native create payloads map
+known schema.org Creative Commons license URLs to Dataverse license objects,
+and updates use Dataverse's dedicated dataset-license endpoint.
 
 Create the Python environment once from the repository root:
 
@@ -75,6 +118,13 @@ the installed LinkML-Map library and executes the example transformation in
 present with `repositorySpecific` (or another explicit unmapped status) and
 an explanation. It is never silently discarded.
 
+For an intentionally unmapped field, use an empty `canonicalCandidates` list,
+an `unmappedReason`, and `onMissing: { action: "omit" }`. Its LinkML slot uses
+`expr: None` so an unrelated source cannot populate it. For example,
+`imprint_publisher` is omitted because a dataset producer is not a verified
+publication imprint publisher. New fields still require a reviewed decision;
+they are not automatically paired with a similarly named source.
+
 The LinkML files model the portable, declarative part of the mapping using the
 real LinkML-Map `TransformationSpecification`, `class_derivations`, and
 `slot_derivations` models. Generation stops unless LinkML-Map reports that
@@ -94,11 +144,13 @@ linkml-map validate-spec `
 
 The generated runtime files are:
 
-- `../crosswalks/arp-dataverse-crosswalk.json`: ARP / RO-Crate to Dataverse;
-- `../crosswalks/arp-zenodo-crosswalk.json`: ARP / RO-Crate to Zenodo.
+- `../crosswalks/arp-dataverse-crosswalk.json` for ARP profile metadata to Dataverse
+- `../crosswalks/arp-zenodo-crosswalk.json` for ARP profile metadata to Zenodo
+- `../crosswalks/schema-org-dataverse-crosswalk.json` for Schema.org metadata to Dataverse
+- `../crosswalks/schema-org-zenodo-crosswalk.json` for Schema.org metadata to Zenodo
 
 Each file includes a machine-readable `id`, a display `name`, and a longer
-`displayName` for future user-selectable crosswalks.
+`displayName`. RocKIT registers these four crosswalks for selection during export.
 
 ### Structure tree
 
@@ -341,12 +393,14 @@ Transformations are arrays and must be applied in their listed order. For
 example:
 
 ```json
-"transform": [
-  { "operation": "omitEmpty" },
-  { "operation": "omitValues", "values": ["./", "."] },
-  { "operation": "trim" },
-  { "operation": "first" }
-]
+{
+  "transform": [
+    { "operation": "omitEmpty" },
+    { "operation": "omitValues", "values": ["./", "."] },
+    { "operation": "trim" },
+    { "operation": "first" }
+  ]
+}
 ```
 
 This means:

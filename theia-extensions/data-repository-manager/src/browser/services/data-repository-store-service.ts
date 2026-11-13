@@ -92,8 +92,11 @@ export class DataRepositoryStoreService {
 
         const hydratedConfigs = configs.map(config => {
             const secret = credentialMap.get(config.id);
+            const { crosswalkId: _legacyCrosswalkId, ...connectionConfig } = config as DataRepositoryConfig & {
+                crosswalkId?: string;
+            };
             return {
-                ...config,
+                ...connectionConfig,
                 apiKey: secret || undefined
             };
         });
@@ -114,8 +117,9 @@ export class DataRepositoryStoreService {
         const { keytarService } = await this.getEnvConfig();
 
         const cleanConfigs = repositories.map(repository => {
-            const { apiKey, type: _legacyType, ...safeConfig } = repository as DataRepositoryConfig & {
+            const { apiKey, type: _legacyType, crosswalkId: _legacyCrosswalkId, ...safeConfig } = repository as DataRepositoryConfig & {
                 type?: string;
+                crosswalkId?: string;
             };
             return safeConfig;
         });

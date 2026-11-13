@@ -1,0 +1,1212 @@
+{
+  "source": {
+    "model": "Schema.org RO-Crate"
+  },
+  "target": {
+    "repository": "zenodo",
+    "schemaFamily": "legacy deposition metadata"
+  },
+  "mappings": [
+    {
+      "id": "zenodo.access_right",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.access_right",
+        "field": "access_right",
+        "type": "string",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/access_right"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "deriveAccessRight",
+          "default": "open",
+          "onAmbiguous": "reportForReview"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile",
+      "unmappedReason": "Access policy is supplied on export and preserved on update."
+    },
+    {
+      "id": "zenodo.creators",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.creators",
+        "field": "creators",
+        "type": "array",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/creators"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "mapEntities",
+          "fields": {
+            "name": [
+              "authorName",
+              "name"
+            ],
+            "affiliation": [
+              "authorAffiliation",
+              "affiliation"
+            ],
+            "orcid": [
+              "authorIdentifier",
+              "identifier"
+            ]
+          },
+          "omitEmptyProperties": true
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "error",
+        "message": "Zenodo requires metadata.creators."
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "property": "author",
+          "shape": "creators"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.description",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "https://schema.org/description",
+            "localName": "description",
+            "schemaOrg": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.description",
+        "field": "description",
+        "type": "string",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/description"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "flattenText",
+          "separator": "\n\n"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "error",
+        "message": "Zenodo requires metadata.description."
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.imprint_isbn",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.imprint_isbn",
+        "field": "imprint_isbn",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/imprint_isbn"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "filterByValue",
+          "property": "otherIdAgency",
+          "equals": "isbn",
+          "caseInsensitive": true
+        },
+        {
+          "operation": "first"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "property": "isbn",
+          "rootTypes": [
+            "Book"
+          ]
+        },
+        {
+          "property": "isbn",
+          "rootTypes": [
+            "Chapter"
+          ],
+          "containerType": "Book"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.imprint_publisher",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.imprint_publisher",
+        "field": "imprint_publisher",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/imprint_publisher"
+      },
+      "mappingStatus": "repositorySpecific",
+      "transformations": [],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "Imprint publisher is not exported without a verified semantic equivalent.",
+      "unmappedReason": "No verified canonical source identifies the publication imprint publisher; a dataset producer is not assumed to be its publisher.",
+      "schemaOrgSources": [
+        {
+          "property": "publisher",
+          "rootTypes": [
+            "Book",
+            "Report"
+          ],
+          "shape": "organizationName"
+        },
+        {
+          "property": "publisher",
+          "rootTypes": [
+            "Chapter"
+          ],
+          "containerType": "Book",
+          "shape": "organizationName"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.journal_issue",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.journal_issue",
+        "field": "journal_issue",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/journal_issue"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "property": "issueNumber",
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "containerType": "PublicationIssue",
+          "requiredContainerType": "Periodical"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.journal_pages",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.journal_pages",
+        "field": "journal_pages",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/journal_pages"
+      },
+      "mappingStatus": "repositorySpecific",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "unmapped unless a repository-specific canonical property is present",
+      "schemaOrgSources": [
+        {
+          "property": "pagination",
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "requiredContainerType": "Periodical"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.journal_title",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.journal_title",
+        "field": "journal_title",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/journal_title"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "property": "name",
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "containerType": "Periodical"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.journal_volume",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.journal_volume",
+        "field": "journal_volume",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/journal_volume"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "property": "volumeNumber",
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "containerType": "PublicationVolume",
+          "requiredContainerType": "Periodical"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.keywords",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.keywords",
+        "field": "keywords",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/keywords"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "asArray"
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "property": "keywords",
+          "shape": "textList"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.language",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "https://schema.org/language",
+            "localName": "language",
+            "schemaOrg": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.language",
+        "field": "language",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/language"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.license",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "https://schema.org/license",
+            "localName": "license",
+            "schemaOrg": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.license",
+        "field": "license",
+        "required": false,
+        "conditionalRequired": {
+          "when": {
+            "field": "access_right",
+            "in": [
+              "open",
+              "embargoed"
+            ]
+          }
+        },
+        "schemaPath": "/repositories/zenodo/schema/properties/license"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "mapVocabulary",
+          "values": {
+            "cc-zero": "cc-zero",
+            "cc-by-4.0": "cc-by-4.0",
+            "cc-by-sa-4.0": "cc-by-sa-4.0",
+            "cc-by-nc-4.0": "cc-by-nc-4.0",
+            "cc-by-nc-sa-4.0": "cc-by-nc-sa-4.0",
+            "cc-by-nd-4.0": "cc-by-nd-4.0",
+            "cc-by-nc-nd-4.0": "cc-by-nc-nd-4.0",
+            "https://creativecommons.org/publicdomain/zero/1.0": "cc-zero",
+            "https://creativecommons.org/publicdomain/zero/1.0/": "cc-zero",
+            "https://creativecommons.org/licenses/by/4.0": "cc-by-4.0",
+            "https://creativecommons.org/licenses/by/4.0/": "cc-by-4.0",
+            "https://creativecommons.org/licenses/by-sa/4.0": "cc-by-sa-4.0",
+            "https://creativecommons.org/licenses/by-sa/4.0/": "cc-by-sa-4.0",
+            "https://creativecommons.org/licenses/by-nc/4.0": "cc-by-nc-4.0",
+            "https://creativecommons.org/licenses/by-nc/4.0/": "cc-by-nc-4.0",
+            "https://creativecommons.org/licenses/by-nc-sa/4.0": "cc-by-nc-sa-4.0",
+            "https://creativecommons.org/licenses/by-nc-sa/4.0/": "cc-by-nc-sa-4.0",
+            "https://creativecommons.org/licenses/by-nd/4.0": "cc-by-nd-4.0",
+            "https://creativecommons.org/licenses/by-nd/4.0/": "cc-by-nd-4.0",
+            "https://creativecommons.org/licenses/by-nc-nd/4.0": "cc-by-nc-nd-4.0",
+            "https://creativecommons.org/licenses/by-nc-nd/4.0/": "cc-by-nc-nd-4.0"
+          },
+          "onUnknown": "reportForReview"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "errorWhenConditionMatches",
+        "condition": {
+          "field": "access_right",
+          "in": [
+            "open",
+            "embargoed"
+          ]
+        }
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.partof_pages",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.partof_pages",
+        "field": "partof_pages",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/partof_pages"
+      },
+      "mappingStatus": "repositorySpecific",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "unmapped unless a repository-specific canonical property is present",
+      "schemaOrgSources": [
+        {
+          "property": "pagination",
+          "rootTypes": [
+            "Chapter"
+          ],
+          "requiredContainerType": "Book"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.partof_title",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.partof_title",
+        "field": "partof_title",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/partof_title"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "property": "name",
+          "rootTypes": [
+            "Chapter"
+          ],
+          "containerType": "Book"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.publication_date",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "https://schema.org/datePublished",
+            "localName": "datePublished",
+            "schemaOrg": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.publication_date",
+        "field": "publication_date",
+        "type": "string",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/publication_date"
+      },
+      "mappingStatus": "mapped",
+      "mappingRationale": "Only a publication date is semantically compatible. ARP/Dataverse productionDate describes when the data was produced and must not be used as a fallback.",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "normalizeDate",
+          "onInvalid": "reportForReview"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "error",
+        "message": "Zenodo requires metadata.publication_date."
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.publication_type",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.publication_type",
+        "field": "publication_type",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": {
+          "when": {
+            "field": "upload_type",
+            "equals": "publication"
+          }
+        },
+        "schemaPath": "/repositories/zenodo/schema/properties/publication_type"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "inferResourceType",
+          "vocabularyPath": "/repositories/zenodo/schema/properties/publication_type/enum",
+          "onUnknown": "reportForReview"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "errorWhenConditionMatches",
+        "condition": {
+          "field": "upload_type",
+          "equals": "publication"
+        }
+      },
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "rootTypes": [
+            "Book"
+          ],
+          "constant": "book"
+        },
+        {
+          "rootTypes": [
+            "Chapter"
+          ],
+          "constant": "section"
+        },
+        {
+          "rootTypes": [
+            "Report"
+          ],
+          "constant": "report"
+        },
+        {
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "requiredContainerType": "Periodical",
+          "constant": "article"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.references",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.references",
+        "field": "references",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/references"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "asArray"
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "property": "citation",
+          "shape": "textList"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.title",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "https://schema.org/name",
+            "localName": "name",
+            "schemaOrg": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.title",
+        "field": "title",
+        "type": "string",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/title"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "error",
+        "message": "Zenodo requires metadata.title."
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.upload_type",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "@type",
+            "localName": "upload_type",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.upload_type",
+        "field": "upload_type",
+        "type": "string",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/upload_type"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "inferResourceType",
+          "vocabularyPath": "/repositories/zenodo/schema/properties/upload_type/enum",
+          "onUnknown": "useDefault"
+        },
+        {
+          "operation": "defaultValue",
+          "value": "dataset",
+          "classification": "repositoryFallback"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "error",
+        "message": "Zenodo requires metadata.upload_type."
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization",
+      "schemaOrgSources": [
+        {
+          "rootTypes": [
+            "Book",
+            "Chapter",
+            "Report"
+          ],
+          "constant": "publication"
+        },
+        {
+          "rootTypes": [
+            "ScholarlyArticle",
+            "Article"
+          ],
+          "requiredContainerType": "Periodical",
+          "constant": "publication"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.locations",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.locations",
+        "field": "locations",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/locations"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "mapEntities",
+          "fields": {
+            "place": [
+              "city",
+              "state",
+              "country",
+              "otherGeographicCoverage"
+            ],
+            "lat": [
+              "northLatitude",
+              "southLatitude"
+            ],
+            "lon": [
+              "eastLongitude",
+              "westLongitude"
+            ],
+            "description": [
+              "description"
+            ]
+          },
+          "omitEmptyProperties": true
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "property": "spatialCoverage",
+          "rootTypes": [
+            "Dataset"
+          ],
+          "shape": "places"
+        }
+      ]
+    },
+    {
+      "id": "zenodo.method",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.method",
+        "field": "method",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/method"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "flattenText",
+          "separator": "\n\n"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile",
+      "schemaOrgSources": [
+        {
+          "property": "measurementMethod",
+          "rootTypes": [
+            "Dataset"
+          ]
+        }
+      ],
+      "unmappedReason": "The browser crosswalk reads the Schema.org measurementMethod directly from the Dataset."
+    }
+  ]
+}

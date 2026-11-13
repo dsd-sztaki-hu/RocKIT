@@ -133,7 +133,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
         )
 
         this.toDispose.push(
-            this.onScroll(() => {
+            this.onScrollYReachEnd(() => {
                 if (this.isScrolledToBottom()) {
                     this.scheduleLoadMoreVisibleChildren()
                 }
@@ -609,6 +609,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
     isFiltersVisible(): boolean {
         return this.filtersVisible
+    }
+
+    protected isScrolledToBottom(): boolean {
+        const { scrollTop, clientHeight, scrollHeight } = this.node
+        return scrollTop + clientHeight >= scrollHeight - 1
     }
 
     protected scheduleLoadMoreVisibleChildren(): void {
@@ -1437,7 +1442,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
 
     protected restoreInputSelection(
-        inputRef: React.RefObject<HTMLInputElement>,
+        inputRef: React.RefObject<HTMLInputElement | null>,
         selection?: { start: number | null; end: number | null },
     ): void {
         if (!selection) {

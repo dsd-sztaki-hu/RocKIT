@@ -7,13 +7,12 @@
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
 import { nls } from '@theia/core/lib/common/nls'
 import URI from '@theia/core/lib/common/uri'
-import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { inject, injectable } from 'inversify'
 import JSZip = require('jszip')
 
-import { DataRepositoryConfig, DataRepositoryImportProgressReporter } from '../types'
+import { DataRepositoryConfig } from '../types'
 import {
   appendExportLogEvent,
   ExportLogEntry,
@@ -33,121 +32,71 @@ export interface ArpRoCrateImportResult {
   mappingFileName: string
 }
 
+export interface ArpProviderImportDownload {
+  providerId: 'arp'
+  cancelled?: boolean
+  datasetPid?: string
+  importedWorkspaceUri?: string
+  archiveUri?: string
+  landingPage?: string
+}
+
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
 
 @injectable()
 export class ArpRoCrateImportService {
   constructor(
-    @inject(FileDialogService) protected readonly fileDialogService: FileDialogService,
     @inject(FileService) protected readonly fileService: FileService,
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileHashStoreService)
     protected readonly fileHashStoreService: FileHashStoreService,
   ) {}
 
-  public async importFromDatasetUrl(
+  public async completeProviderImport(
     repository: DataRepositoryConfig,
-    datasetUrl: string,
-    reportProgress?: DataRepositoryImportProgressReporter,
-  ): Promise<ArpRoCrateImportResult | undefined> {
-    const datasetPid = this.extractDatasetPid(datasetUrl)
-    if (!datasetPid) {
-      throw new Error(nls.localize('rockit/dataRepository/extractDatasetIdFailed', 'Could not extract a dataset handle or persistent ID from the dataset URL.'))
+    download: ArpProviderImportDownload,
+  ): Promise<(ArpRoCrateImportResult & { openedWorkspace: true }) | { cancelled: true }> {
+    if (download.cancelled) {
+      return { cancelled: true }
+    }
+    if (download.providerId !== 'arp' || !download.datasetPid ||
+        !download.importedWorkspaceUri || !download.archiveUri) {
+      throw new Error('The ARP provider returned an incomplete import download.')
+    }
+    const targetDirectory = new URI(download.importedWorkspaceUri)
+    const archiveUri = new URI(download.archiveUri)
+    if (targetDirectory.isEqual(archiveUri) || !targetDirectory.isEqualOrParent(archiveUri)) {
+      throw new Error('The ARP provider returned an import archive outside its workspace.')
     }
 
-    const importParentDirectory = await this.fileDialogService.showOpenDialog({
-      title: nls.localize('rockit/dataRepository/selectImportFolder', 'Select Import Folder'),
-      openLabel: nls.localize('rockit/dataRepository/importHere', 'Import Here'),
-      canSelectFiles: false,
-      canSelectFolders: true,
-      canSelectMany: false,
-    })
-    if (!importParentDirectory) {
-      return undefined
+    let extractedFileCount: number
+    try {
+      const archive = await this.fileService.readFile(archiveUri)
+      extractedFileCount = await this.extractZip(archive.value.buffer, targetDirectory)
+    } finally {
+      if (await this.fileService.exists(archiveUri)) {
+        await this.fileService.delete(archiveUri)
+      }
     }
-
-    const targetDirectory = await this.createUniqueImportDirectory(
-      importParentDirectory,
-      datasetPid,
-    )
-    const totalSteps = 4
-    reportProgress?.({
-      completedSteps: 0,
-      totalSteps,
-      message: nls.localize('rockit/dataRepository/downloadingDatasetArchive', 'Downloading dataset archive...'),
-    })
-    const zipBytes = await this.downloadRoCrateZip(repository, datasetPid)
-    reportProgress?.({
-      completedSteps: 1,
-      totalSteps,
-      message: nls.localize('rockit/dataRepository/extractingDatasetArchive', 'Extracting dataset archive...'),
-    })
-    const extractedFileCount = await this.extractZip(zipBytes, targetDirectory)
     const metadataUri = targetDirectory.resolve('ro-crate-metadata.json')
     if (!(await this.fileService.exists(metadataUri))) {
-      throw new Error(nls.localize('rockit/dataRepository/missingDownloadedMetadata', 'The downloaded ZIP did not contain ro-crate-metadata.json.'))
+      throw new Error(nls.localize(
+        'rockit/dataRepository/missingDownloadedMetadata',
+        'The downloaded ZIP did not contain ro-crate-metadata.json.',
+      ))
     }
     const crate = await this.readRoCrate(metadataUri)
-    reportProgress?.({
-      completedSteps: 2,
-      totalSteps,
-      message: nls.localize('rockit/dataRepository/generatingImportLinkMapping', 'Generating remote link mapping...'),
-    })
     const mappingFileName = await this.persistImportedExportState(
-      targetDirectory,
-      repository,
-      datasetPid,
-      crate,
-    )
-    await this.persistImportedFileHashes(targetDirectory, crate, datasetPid)
-
-    reportProgress?.({
-      completedSteps: 3,
-      totalSteps,
-      message: nls.localize('rockit/dataRepository/openingImportedDataset', 'Opening imported dataset...'),
-    })
+      targetDirectory, repository, download.datasetPid, crate)
+    await this.persistImportedFileHashes(targetDirectory, crate, download.datasetPid)
     this.workspaceService.open(targetDirectory, { preserveWindow: false })
-    reportProgress?.({ completedSteps: totalSteps, totalSteps, message: '' })
-
     return {
-      datasetPid,
+      datasetPid: download.datasetPid,
       targetDirectory,
       extractedFileCount,
       mappingFileName,
+      openedWorkspace: true,
     }
-  }
-
-  protected async downloadRoCrateZip(
-    repository: DataRepositoryConfig,
-    datasetPid: string,
-  ): Promise<Uint8Array> {
-    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
-    const url = new URL(
-      `/api/access/datafiles/rocrate/${this.encodeDatasetPidPath(datasetPid)}`,
-      `${baseUrl}/`,
-    )
-    const headers: Record<string, string> = { accept: 'application/zip' }
-    if (repository.apiKey) {
-      headers['x-dataverse-key'] = repository.apiKey
-    }
-
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers,
-    })
-    if (!response.ok) {
-      const message = await this.readErrorResponseMessage(response)
-      throw new Error(
-        nls.localize(
-          'rockit/dataRepository/arpZipDownloadFailed',
-          'ARP RO-Crate ZIP download failed ({0}): {1}',
-          response.status,
-          message,
-        ),
-      )
-    }
-
-    return new Uint8Array(await response.arrayBuffer())
   }
 
   protected async extractZip(zipBytes: Uint8Array, targetDirectory: URI): Promise<number> {
@@ -184,37 +133,6 @@ export class ArpRoCrateImportService {
       await this.ensureFolder(parent)
     }
     await this.fileService.createFolder(uri)
-  }
-
-  protected async createUniqueImportDirectory(parent: URI, datasetPid: string): Promise<URI> {
-    const baseName = this.createImportDirectoryName(datasetPid)
-    let candidate = parent.resolve(baseName)
-    let suffix = 2
-
-    while (await this.fileService.exists(candidate)) {
-      candidate = parent.resolve(`${baseName}-${suffix}`)
-      suffix += 1
-    }
-
-    await this.fileService.createFolder(candidate)
-    return candidate
-  }
-
-  protected createImportDirectoryName(datasetPid: string): string {
-    const tail = datasetPid
-      .split('/')
-      .map((segment) => segment.trim())
-      .filter((segment) => segment.length > 0)
-      .pop()
-
-    const rawName = tail || datasetPid
-    const sanitized = rawName
-      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .replace(/^\.+$/, '')
-
-    return sanitized || 'ro-crate-import'
   }
 
   protected resolveSafeChild(root: URI, relativePath: string): URI {
@@ -279,13 +197,6 @@ export class ArpRoCrateImportService {
     return trimmed.includes('/') ? undefined : trimmed
   }
 
-  protected encodeDatasetPidPath(datasetPid: string): string {
-    return datasetPid
-      .split('/')
-      .map((segment) => encodeURIComponent(segment).replace(/%3A/gi, ':'))
-      .join('/')
-  }
-
   protected async readRoCrate(metadataUri: URI): Promise<RoCrate> {
     const content = await this.fileService.readFile(metadataUri)
     try {
@@ -301,66 +212,6 @@ export class ArpRoCrateImportService {
     }
   }
 
-  protected async readErrorResponseMessage(response: Response): Promise<string> {
-    const text = await response.text().catch(() => '')
-    if (!text.trim()) {
-      return response.statusText || nls.localize(
-        'rockit/dataRepository/noResponseBody',
-        'No response body.',
-      )
-    }
-    try {
-      return this.payloadSummary(JSON.parse(text))
-    } catch {
-      return text.slice(0, 500)
-    }
-  }
-
-  protected payloadSummary(payload: unknown): string {
-    const messages = this.collectPayloadMessages(payload)
-    if (messages.length) {
-      return messages.join('; ').slice(0, 500)
-    }
-    if (typeof payload === 'string') {
-      return payload.slice(0, 500)
-    }
-    try {
-      return JSON.stringify(payload).slice(0, 500)
-    } catch {
-      return String(payload).slice(0, 500)
-    }
-  }
-
-  protected collectPayloadMessages(payload: unknown): string[] {
-    if (!payload || typeof payload !== 'object') {
-      return typeof payload === 'string' && payload.trim() ? [payload.trim()] : []
-    }
-    if (Array.isArray(payload)) {
-      return payload.flatMap((item) => this.collectPayloadMessages(item))
-    }
-
-    const record = payload as Record<string, unknown>
-    const directMessages = [
-      record.message,
-      record.error,
-      record.status,
-      record.reason,
-      record.details,
-    ].filter(
-      (value): value is string =>
-        typeof value === 'string' && value.trim().length > 0,
-    )
-
-    const nestedMessages = [
-      record.data,
-      record.errors,
-      record.errorMessages,
-      record.messages,
-    ].flatMap((value) => this.collectPayloadMessages(value))
-
-    return [...directMessages, ...nestedMessages]
-  }
-
   protected async persistImportedExportState(
     rootUri: URI,
     repository: DataRepositoryConfig,
@@ -371,7 +222,8 @@ export class ArpRoCrateImportService {
     const mappingFileName = await this.createUniqueMappingFileName(rootUri)
     await this.saveEntityIdMapping(rootUri, mappingFileName, mapping)
     await this.appendExportLog(rootUri, {
-      target: this.buildDatasetPidTarget(datasetPid),
+      target: this.buildDataverseDatasetUrl(repository.baseUrl, datasetPid) ||
+        this.buildDatasetPidTarget(datasetPid),
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: mappingFileName,
       syncType: 'update',
@@ -523,6 +375,13 @@ export class ArpRoCrateImportService {
       return `https://hdl.handle.net/${trimmed.slice('hdl:'.length)}`
     }
     return trimmed
+  }
+
+  protected buildDataverseDatasetUrl(baseUrl: string, pid: string): string {
+    const encodedPid = encodeURIComponent(pid)
+      .replace(/%3A/gi, ':')
+      .replace(/%2F/gi, '/')
+    return `${this.normalizeBaseUrl(baseUrl)}/dataset.xhtml?persistentId=${encodedPid}`
   }
 
   protected normalizePid(value: string): string {

@@ -50,7 +50,6 @@ for (const pluginId of customEditorPluginIds) {
   }
 
   writeJson(manifestPath, manifest)
-  console.log(`Configured ${pluginId} as the default editor for supported files.`)
 }
 
 const { manifestPath: mediaManifestPath, manifest: mediaManifest } = readManifest(
@@ -140,7 +139,6 @@ mergePluginMessages('janisdd.vscode-edit-csv', 'hu', {
   'command.apply.title': 'Módosítások alkalmazása a forrásfájlra',
   'command.applyAndSave.title': 'Módosítások alkalmazása és a forrásfájl mentése',
 })
-console.log('Added Hungarian menu labels for the media, PDF, and CSV plugins.')
 
 const videoPreviewCssPath = path.join(
   pluginsRoot,
@@ -168,7 +166,6 @@ const videoPreviewCss = fs.readFileSync(videoPreviewCssPath, 'utf8')
 if (!videoPreviewCss.includes(videoFitMarker)) {
   fs.writeFileSync(videoPreviewCssPath, `${videoPreviewCss.trimEnd()}\n\n${videoFitCss}\n`)
 }
-console.log('Configured video previews to fit inside the editor pane.')
 
 const csvEditorRoot = path.join(
   pluginsRoot,
@@ -264,4 +261,3 @@ if (!csvEditorUi.includes(csvGridSizeMarker)) {
   csvEditorUi = csvEditorUi.replace(csvGridSizeOriginal, csvGridSizeReplacement)
   fs.writeFileSync(csvEditorUiPath, csvEditorUi)
 }
-console.log('Configured the CSV editor to fit inside the editor pane.')

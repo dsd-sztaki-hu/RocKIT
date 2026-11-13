@@ -109,6 +109,50 @@ function readTestResource(relativePath: string): string {
     return readFileSync(fullPath, 'utf-8');
 }
 
+function assertCondition(condition: unknown, message: string): asserts condition {
+    if (!condition) {
+        throw new Error(message);
+    }
+}
+
+function createField(
+    name: any,
+    inputType: any,
+    valueConstraints: Record<string, any> = {},
+    extra: Record<string, any> = {},
+): Record<string, any> {
+    return {
+        '@type': 'https://schema.metadatacenter.org/core/TemplateField',
+        'schema:name': name,
+        'schema:description': `${String(name)} help`,
+        '_ui': { inputType },
+        '_valueConstraints': valueConstraints,
+        ...extra,
+    };
+}
+
+function createTemplate(
+    properties: Record<string, any>,
+    order: string[] = Object.keys(properties),
+): Record<string, any> {
+    return {
+        'schema:name': 'Test template',
+        'schema:description': 'Test template description',
+        '_ui': { order },
+        properties: {
+            '@context': {
+                properties: Object.fromEntries(
+                    Object.keys(properties).map((name) => [
+                        name,
+                        { enum: [`https://example.test/properties/${name}`] },
+                    ]),
+                ),
+            },
+            ...properties,
+        },
+    };
+}
+
 // Test suite
 function runTests(): void {
     console.log('Running CedarTemplateToDescriboProfileConverter tests...\n');
@@ -246,12 +290,117 @@ function runTests(): void {
     });
 
     // Test: Citation Template conversion to Hungarian Describo profile
-    runTest('citationCedarTemplateEn', () => {
+    runTest('citationCedarTemplateHu', () => {
         const converter = new CedarTemplateToDescriboProfileConverter('hu');
         const cedarTemplate = readTestResource('citationCedarTemplate.json');
         const expectedProfile = readTestResource('citationDescriboProfile_hu.json');
         const generatedProfile = converter.processCedarTemplate(cedarTemplate);
         assertEquals(generatedProfile, expectedProfile, 'Citation Template conversion to Hungarian Describo profile test failed');
+    });
+
+    runTest('regionalHungarianLocale', () => {
+        const converter = new CedarTemplateToDescriboProfileConverter('hu-HU');
+        const profile = JSON.parse(converter.processCedarTemplate(JSON.stringify(createTemplate({}))));
+
+        assertCondition(
+            profile.localisation.Dataset === 'Adatcsomag',
+            'A regional Hungarian locale should use Hungarian profile text',
+        );
+    });
+
+    runTest('localizedFieldFallbacks', () => {
+        const english = new CedarTemplateToDescriboProfileConverter('en');
+        const hungarian = new CedarTemplateToDescriboProfileConverter('hu');
+        const translatedField = {
+            'schema:name': 'English name',
+            'schema:description': 'English help',
+            'skos:prefLabel': 'Preferred English name',
+            hunLabel: 'Magyar név',
+            hunDescription: 'Magyar súgó',
+        };
+        const fallbackField = {
+            'schema:name': 'English name',
+            'schema:description': 'English help',
+        };
+
+        assertCondition(
+            english.getLocalizedLabel(translatedField) === 'Preferred English name',
+            'English should prefer skos:prefLabel',
+        );
+        assertCondition(
+            hungarian.getLocalizedLabel(translatedField) === 'Magyar név' &&
+                hungarian.getLocalizedHelp(translatedField) === 'Magyar súgó',
+            'Hungarian translations should be used when present',
+        );
+        assertCondition(
+            hungarian.getLocalizedLabel(fallbackField) === 'English name' &&
+                hungarian.getLocalizedHelp(fallbackField) === 'English help',
+            'Missing Hungarian text should fall back to English without modifying it',
+        );
+    });
+
+    runTest('optionalAndRepeatedFields', () => {
+        const template = createTemplate({
+            optional: createField('schema:optional', 'textfield'),
+            repeated: createField(
+                'schema:repeated',
+                'textfield',
+                { requiredValue: true, multipleChoice: true },
+            ),
+        });
+        const converter = new CedarTemplateToDescriboProfileConverter('en');
+        const profile = JSON.parse(converter.processCedarTemplate(JSON.stringify(template)));
+        const inputs = profile.classes.Dataset.inputs;
+        const optional = inputs.find((input: any) => input.name === 'schema.optional');
+        const repeated = inputs.find((input: any) => input.name === 'schema.repeated');
+
+        assertCondition(
+            optional?.required === false && optional?.multiple === false,
+            'An unconstrained field should remain optional and single-valued',
+        );
+        assertCondition(
+            repeated?.required === true && repeated?.multiple === true,
+            'A repeated required field should preserve both constraints',
+        );
+    });
+
+    runTest('malformedValuesAreSkippedSafely', () => {
+        const validChoice = createField('schema:choice', 'list', {
+            literals: [null, 42, { label: '' }, { label: 'Allowed' }],
+        });
+        const template = createTemplate(
+            {
+                missingContext: createField('schema:ignored', 'textfield'),
+                badName: createField(42, 'textfield'),
+                choice: validChoice,
+            },
+            ['missingProperty', 'missingContext', 'badName', 'choice'],
+        );
+        delete template.properties['@context'].properties.missingContext;
+        const converter = new CedarTemplateToDescriboProfileConverter('en');
+        const profile = JSON.parse(converter.processCedarTemplate(JSON.stringify(template)));
+
+        assertCondition(
+            profile.classes.Dataset.inputs.length === 1,
+            'Malformed and incomplete fields should be skipped',
+        );
+        assertCondition(
+            deepEqual(profile.classes.Dataset.inputs[0].values, ['Allowed']),
+            'Only valid literal labels should be retained',
+        );
+    });
+
+    runTest('conversionIsStableAndDoesNotMutateInput', () => {
+        const template = createTemplate({
+            title: createField('schema:title', 'textfield', { requiredValue: true }),
+        });
+        const snapshot = JSON.stringify(template);
+        const converter = new CedarTemplateToDescriboProfileConverter('en');
+        const first = converter.processCedarTemplate(snapshot);
+        const second = converter.processCedarTemplate(snapshot);
+
+        assertCondition(JSON.stringify(template) === snapshot, 'Conversion mutated the source object');
+        assertCondition(first === second, 'Repeated conversion should produce stable output');
     });
 
     // Print summary

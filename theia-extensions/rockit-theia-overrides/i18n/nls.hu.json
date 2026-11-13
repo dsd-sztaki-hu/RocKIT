@@ -363,10 +363,36 @@
       "metadataProfileManager": "Metadataprofil-kezelő",
       "dataRepositoryManager": "Adatrepozitórium-kezelő",
       "globalEntityLibrary": "Globális entitástár",
+      "crosswalkManager": "Crosswalk-kezelő",
       "roCratePreview": "Előnézet",
       "remoteToLocalConversion": "Távoli azonosítók helyivé alakítása",
       "filePreview": "Fájlelőnézet",
+      "plugins": "Bővítmények",
       "toggleHelpIcons": "Súgóikonok megjelenítése/elrejtése"
+    },
+    "crosswalkManager": {
+      "title": "Crosswalk-kezelő",
+      "open": "Crosswalk-kezelő megnyitása",
+      "description": "A crosswalkok határozzák meg, hogyan képeződnek le a RocKIT metaadatai a repozitórium metaadataira.",
+      "name": "Név",
+      "repositories": "Repozitóriumok",
+      "rules": "Szabályszámláló",
+      "importedAt": "Importálva",
+      "builtIn": "Beépített",
+      "builtInCannotDelete": "A beépített crosswalkok nem törölhetők.",
+      "actions": "Művelet",
+      "import": "Crosswalk importálása",
+      "importedCount": "{0} crosswalk sikeresen importálva.",
+      "importFailed": "A crosswalk importálása sikertelen: {0}",
+      "loadFailed": "A crosswalk-nyilvántartás betöltése sikertelen: {0}",
+      "delete": "Törlés",
+      "cancel": "Mégse",
+      "deleteQuestion": "Törli ezt a crosswalkot?",
+      "deleteDescription": "A tárolt crosswalkfájl törlődik a RocKIT adatai közül.",
+      "deleted": "A(z) „{0}” crosswalk törölve.",
+      "deleteFailed": "A crosswalk törlése sikertelen: {0}",
+      "empty": "Nincsenek crosswalkok",
+      "emptyDescription": "Crosswalk JSON-fájl hozzáadásához használja a Crosswalk importálása gombot."
     },
     "globalEntities": {
       "author": "Szerző",
@@ -734,6 +760,17 @@
       "missingUpper": "HIÁNYZIK"
     },
     "dataRepository": {
+      "progress": {
+        "create": "Exportálás ide: {0}…",
+        "update": "Adatcsomag frissítése itt: {0}…",
+        "sync": "Szinkronizálás innen: {0}…",
+        "import": "Importálás innen: {0}…",
+        "link": "Adatcsomag összekapcsolása ezzel: {0}…",
+        "delete": "Adatcsomag törlése innen: {0}…",
+        "finishing": "Helyi repozitóriumadatok frissítése…",
+        "refreshing": "Helyi RO-Crate frissítése…",
+        "extracting": "Letöltött adatcsomag kicsomagolása…"
+      },
       "title": "Adatrepozitórium-kezelő",
       "openDocumentation": "Az Adatrepozitórium-kezelő dokumentációjának megnyitása",
       "importRemote": "Importálás repozitóriumból",
@@ -761,6 +798,9 @@
       "lastValidationError": "Legutóbbi validációs hiba",
       "chooseRepository": "Repozitórium kiválasztása",
       "chooseRepositoryDescription": "Válasszon repozitóriumot a gyűjtemények böngészéséhez.",
+      "repositoryTypeRequired": "Repozitóriumtípus szükséges",
+      "repositoriesMissingTypeWarning": "Néhány beállított repozitóriumhoz nincs repozitóriumtípus megadva. Ezeknél a repozitóriumoknál a műveletek nem érhetők el. Szerkessze az érintett repozitóriumokat, és válasszon repozitóriumtípust a műveletek engedélyezéséhez.",
+      "repositoryTypeMissingFromConfig": "A repozitóriumtípus hiányzik a repozitórium beállításaiból.",
       "noRepositoriesFound": "Nem találhatók repozitóriumok",
       "noRepositoriesConfigured": "Még nincs beállítva adatrepozitórium.",
       "lastSuccessfullyModified": "Utolsó sikeres módosítás: {0}",
@@ -778,6 +818,12 @@
       "update": "Frissítés",
       "displayNameRequired": "A megjelenítendő név megadása kötelező.",
       "baseUrlRequired": "Az alap-URL megadása kötelező.",
+      "providerType": "Repozitóriumtípus",
+      "autoDetect": "Automatikus felismerés",
+      "autoDetectTooltip": "A telepített repozitórium-bővítmények segítségével meghatározza a repozitórium típusát ebből az alap-URL-ből.",
+      "detecting": "Felismerés…",
+      "typeBeingDetected": "A repozitóriumtípus felismerése folyamatban van.",
+      "typeNotDetected": "A telepített repozitórium-bővítmények egyike sem tudta azonosítani ezt az URL-t.",
       "tokenRequired": "Az API-token megadása kötelező.",
       "validBaseUrlRequired": "Adjon meg érvényes HTTP vagy HTTPS alap-URL-t.",
       "serverUnreachable": "A szerver nem érhető el. Ellenőrizze az alap-URL-t és a hálózati kapcsolatot.",
@@ -787,6 +833,32 @@
       "configureConnection": "Adja meg az adatrepozitórium kapcsolati adatait.",
       "error": "Hiba",
       "displayName": "Megjelenítendő név",
+      "crosswalk": "Metaadat-crosswalk",
+      "crosswalkHelp": "A metaadat-crosswalk az RO-Crate metaadatait a repozitórium által elvárt mezőkre alakítja át. A kiválasztott crosswalk az exporttal együtt mentésre kerül, és a későbbi frissítések és szinkronizálások is ezt használják.",
+      "selectCrosswalk": "Válasszon metaadat-crosswalkot",
+      "noCompatibleCrosswalk": "Ehhez a repozitóriumtípushoz nincs kompatibilis metaadat-crosswalk regisztrálva.",
+      "uploadOptions": "Feltöltési beállítások",
+      "uploadCrosswalkDescription": "Válassza ki a feltöltéshez használandó metaadat-crosswalkot. A későbbi frissítések és szinkronizálások ugyanezt a crosswalkot használják.",
+      "noCrosswalk": "Nincs crosswalk",
+      "exportDetails": "Export részletei",
+      "editExport": "Export szerkesztése",
+      "editExportNamed": "Export szerkesztése: {0}",
+      "exportRecordMissing": "Ez az exportrekord már nem létezik.",
+      "invalidExportLog": "Az exportnaplónak rekordok listáját kell tartalmaznia.",
+      "selectedCrosswalkMissing": "A kiválasztott crosswalk („{0}”) már nincs regisztrálva.",
+      "editExportFailed": "Az exportrekord szerkesztése sikertelen: {0}",
+      "exportTarget": "Cél",
+      "exportRepository": "Repozitórium",
+      "exportMappingFile": "Leképezési fájl",
+      "exportDatasetName": "Adatcsomag neve",
+      "exportCollectionId": "Gyűjteményazonosító",
+      "exportStatus": "Állapot",
+      "exportErrorMessage": "Hibaüzenet",
+      "exportLastAction": "Legutóbbi művelet",
+      "exportLastSuccess": "Legutóbbi sikeres művelet",
+      "exportHistory": "Előzmények",
+      "missingCrosswalk": "Hiányzó crosswalk: {0}",
+      "crosswalkHint": "A RocKIT ezt a crosswalkot használja a repozitórium-metaadatok importálásához, exportálásához, frissítéséhez és szinkronizálásához.",
       "apiToken": "API-token",
       "pasteToken": "Illessze be az API-tokent",
       "storedSecurely": "Biztonságosan tárolva",
@@ -864,9 +936,7 @@
       "subjectAstronomy": "Csillagászat és asztrofizika",
       "subjectArts": "Művészetek és bölcsészettudományok",
       "subjectAgriculture": "Agrártudományok",
-      "importUnsupported": "Az importálás nem támogatott a(z) „{0}” repozitóriumnál, mert az nem biztosít támogatott Dataverse- vagy Zenodo API-t.",
-      "importZenodoRecord": "Zenodo-rekord importálása",
-      "importZenodoRecordDescription": "Adjon meg egy Zenodo-feltöltési URL-t a következő formátumban: https://zenodo.org/uploads/{id}.",
+      "importUnsupported": "Az importálás nem támogatott a(z) „{0}” repozitóriumnál, mert az nem biztosít támogatott Dataverse API-t.",
       "importDataset": "Dataverse-adatcsomag importálása",
       "importDatasetDescription": "Adja meg az importálandó Dataverse-adatcsomag állandó azonosítóját vagy URL-jét.",
       "importingFrom": "Adatcsomag importálása innen: {0}…",
@@ -879,7 +949,6 @@
       "openingImportedDataset": "Importált adatcsomag megnyitása…",
       "importedWithoutMetadata": "A Dataverse-adatcsomag importálva ide: {0}. {1} fájl kibontva. A csomag nem tartalmazott ro-crate-metadata.json fájlt, ezért azt a munkaterület megnyitása után létre lehet hozni.",
       "importedDataset": "Adatcsomag importálva ide: {0}. {1} fájl kibontva.",
-      "importedZenodoRecord": "A Zenodo-rekord importálva ide: {0}. {1} fájl letöltve, és az RO-Crate-metaadatok létrehozva.",
       "importFailed": "Az adatcsomag importálása sikertelen: {0}",
       "unsavedExportBlocked": "Nem exportálható repozitóriumba, amíg az RO-Crate nem mentett módosításokat tartalmaz. Előbb mentse az RO-Crate-et, majd próbálja újra.",
       "exportPreparationFailed": "A távoli exportálás előkészítése sikertelen: {0}",
@@ -1025,12 +1094,12 @@
       "unlinkExportedDataset": "Exportált adatcsomag leválasztása",
       "deleteRemoteDataset": "Távoli adatcsomag törlése",
       "deleteDraft": "Piszkozat törlése",
-      "deleteDeposition": "Depozíció törlése",
+      "deleteRemoteRecord": "Távoli rekord törlése",
       "unlinkExportQuestion": "Leválasztja ezt az exportot?",
       "deleteRemoteDatasetQuestion": "Törli ezt a távoli adatcsomagot?",
       "unlinkExportDescription": "Ez eltávolítja a helyi exportkapcsolatot és hozzárendelést. A távoli adatcsomag nem módosul.",
       "deleteDataverseDraftDescription": "A Dataverse törli a legújabb piszkozatot, majd eltávolítja a helyi exportkapcsolatot.",
-      "deleteZenodoDepositionDescription": "A Zenodo-depozíció törlődik, majd a helyi exportkapcsolat is eltávolításra kerül.",
+      "deletePluginRecordDescription": "A repozitórium-bővítmény törli a távoli rekordot, majd a helyi exportkapcsolat is eltávolításra kerül.",
       "publishedDatasetDeleteWarning": "A közzétett adatcsomagok általában nem törölhetők. Egy normál felhasználó rendszerint csak a legújabb piszkozatverziót törölheti.",
       "exportDeletionFailed": "Az export törlése sikertelen",
       "exportCouldNotBeDeleted": "Az export nem törölhető",
@@ -1040,65 +1109,13 @@
       "readExportLogFailed": "A .rockit/export-log.json nem olvasható: {0}",
       "deletingRemoteDatasetFrom": "Távoli adatcsomag törlése innen: {0}…",
       "removingLocalExportLink": "Helyi exportkapcsolat eltávolítása…",
-      "zenodoTokenMissing": "Hiányzik a Zenodo API-token.",
-      "zenodoRequiredMetadata": "Kötelező Zenodo metaadatok",
-      "zenodoRequiredMetadataDescription": "Töltse ki azokat a repozitórium azon kötelezően kitöltendő mezőit, amelyek nem képezhetők le az RO-Crate metaadataiból.",
-      "zenodoAccessRight": "Hozzáférési mód",
-      "zenodoLicense": "Licenc",
-      "zenodoLicenseDescription": "A kiválasztott licenc a depozíció összes fájljára vonatkozik. A Zenodo a metaadatokat ettől függetlenül Creative Commons Zero alatt teszi elérhetővé.",
-      "zenodoLicensesLoadFailed": "A Zenodo licencei nem tölthetők be",
-      "zenodoRepositoryDefaultLicense": "{0} (Zenodo-alapértelmezés)",
-      "zenodoEmbargoDate": "Embargó vége",
-      "zenodoAccessConditions": "Hozzáférési feltételek",
-      "creatingZenodoDraft": "Zenodo-depozíció piszkozatának létrehozása…",
-      "zenodoCreationFailed": "A Zenodo-depozíció létrehozása sikertelen ({0}) itt: {1}: {2}",
-      "zenodoCreationMissingIds": "A Zenodo létrehozta a depozíciót, de a válasz nem tartalmazott azonosítót és tárhelyhivatkozást.",
-      "zenodoFileUploadFailed": "A(z) „{0}” fájl feltöltése sikertelen a Zenodóba ({1}) itt: {2}: {3}",
-      "uploadingZenodoMetadata": "Zenodo-depozíció metaadatainak feltöltése…",
-      "zenodoMetadataUploadFailed": "A Zenodo-metaadatok feltöltése sikertelen ({0}) itt: {1}: {2}",
       "writingLocalExportMapping": "Helyi export-hozzárendelés írása…",
-      "zenodoExportComplete": "A Zenodo-exportálás befejeződött.",
-      "noExistingZenodoSelected": "Nincs frissítésre kijelölt meglévő Zenodo-depozíció.",
-      "loadingZenodoDeposition": "Zenodo-depozíció betöltése…",
-      "zenodoLookupFailed": "A Zenodo-depozíció lekérése sikertelen",
-      "zenodoWritableDraftMissing": "A Zenodo nem adott vissza írható piszkozat-azonosítót és tárhelyhivatkozást.",
-      "updatingZenodoMetadata": "Zenodo-metaadatok frissítése…",
-      "zenodoMetadataUpdateFailed": "A Zenodo-metaadatok frissítése sikertelen",
-      "zenodoUpdateComplete": "A Zenodo-frissítés befejeződött.",
-      "extractZenodoDepositionIdFailed": "Nem sikerült Zenodo-depozícióazonosítót kinyerni az adatcsomag URL-jéből.",
-      "zenodoReferencedFileMissing": "A Zenodo-feltöltésben hivatkozott fájl nem található: {0}",
-      "zenodoCreatorRequired": "A Zenodo-exportáláshoz legalább egy létrehozó szükséges. Exportálás előtt adjon szerzőnevet az RO-Crate gyökér-adatcsomagjához.",
-      "publishedZenodoCannotUpdate": "Ez a Zenodo-depozíció már közzétett, ezért a RocKIT-ből nem frissíthető.",
-      "zenodoStatusLookupFailed": "A Zenodo-depozíció állapotának lekérése sikertelen",
-      "invalidZenodoDepositionResponse": "A Zenodo érvénytelen depozícióválaszt adott vissza.",
-      "zenodoLookupFailedWithStatus": "A Zenodo-depozíció lekérése sikertelen ({0}) itt: {1}: {2}",
-      "zenodoFileListingFailed": "A Zenodo-fájlok listázása sikertelen",
-      "zenodoFileListingFailedWithStatus": "A Zenodo-fájlok listázása sikertelen ({0}) itt: {1}: {2}",
-      "invalidZenodoFileList": "A Zenodo érvénytelen depozíciófájl-listát adott vissza.",
-      "invalidZenodoFileEntry": "A Zenodo érvénytelen depozíciófájl-bejegyzést adott vissza.",
-      "zenodoFileMissingFilename": "A Zenodo olyan depozíciófájlt adott vissza, amelynek nincs fájlneve.",
-      "zenodoFileMissingId": "A(z) „{0}” Zenodo-fájlnak nincs azonosítója, ezért nem távolítható el.",
-      "zenodoFileDeletionFailed": "A(z) „{0}” Zenodo-fájl törlése sikertelen ({1}) itt: {2}: {3}",
-      "zenodoResponseMissingLink": "A Zenodo-válasz nem tartalmazta a(z) „{0}” hivatkozást.",
-      "updatingZenodoIn": "Zenodo-depozíció frissítése itt: {0}…",
       "uploadingRoCrateTo": "RO-Crate-fájlok feltöltése ide: {0}…",
-      "zenodoUpdateCompleted": "A Zenodo-frissítés befejeződött ennél: {0}. {1} új fájl feltöltve, {2} lecserélve, {3} eltávolítva, {4} változatlanul megtartva.{5}",
-      "zenodoNewVersionDraftUsed": " Új verzió piszkozata lett használva.",
-      "zenodoDraftCreated": "Zenodo-depozíció piszkozata létrehozva: {0}. {1} fájl feltöltve.",
-      "zenodoMetadataPayloadUploaded": "Az RO-Crate-metaadatok memóriában tárolt Zenodo JSON-adattá lettek alakítva, majd feltöltésre kerültek a piszkozatba.",
-      "zenodoExportFailed": "A Zenodo-exportálás sikertelen: {0}",
-      "zenodoSyncCompleted": "A Zenodo-szinkronizálás befejeződött ennél: {0}. {1} új fájl letöltve, {2} módosított fájl lecserélve, {3} változatlan fájl megtartva.",
-      "zenodoSyncFailed": "A Zenodo-szinkronizálás sikertelen: {0}",
-      "zenodoMissingExportMappingForSync": "Ehhez a Zenodo-exportcélhoz nincs helyi hozzárendelési fájl. A szinkronizálás nem tudja biztonságosan elhelyezni a távoli fájlokat a munkaterületen.",
       "downloadingUploadedMetadata": "A feltöltött ro-crate-metadata.json letöltése…",
       "applyingRemoteMetadata": "Távoli repozitóriumi metaadatok alkalmazása…",
-      "zenodoRemoteCheckingComplete": "Az ellenőrzés befejeződött: {0} távoli fájl letöltendő, {1} változatlan fájl megtartandó.",
       "loadingDataverseDataset": "Dataverse-adatcsomag betöltése…",
       "dataverseRemoteCheckingComplete": "Az ellenőrzés befejeződött: {0} távoli fájl letöltendő, {1} változatlan fájl megtartandó.",
       "dataverseSyncFileDownloadFailed": "A(z) {0} azonosítójú Dataverse-fájl letöltése sikertelen ({1}): {2}",
-      "zenodoDepositionMissingMetadata": "A Zenodo-depozícióválasz nem tartalmazott metadata objektumot.",
-      "zenodoFileMissingDownloadLink": "A(z) „{0}” Zenodo-fájl nem tartalmaz letöltési hivatkozást.",
-      "zenodoFileDownloadFailed": "A(z) „{0}” Zenodo-fájl letöltése sikertelen ({1}) itt: {2}: {3}",
       "loadingDataverseMetadataSchemas": "Dataverse-metaadatsémák betöltése innen: {0}…",
       "dataverseMetadataSchemasLoadFailed": "A Dataverse-metaadatsémák nem tölthetők be: {0}",
       "metadataLanguage": "Az adatcsomag metaadatainak nyelve",
@@ -1415,6 +1432,9 @@
     "settingsEditor2": {
       "SearchSettings.AriaLabel": "Beállítások keresése"
     },
+    "preferencesEditorInput": {
+      "preferencesEditorInputName": "Beállítások"
+    },
     "keybindingsEditorModel": {
       "user": "Felhasználó"
     },
@@ -1448,6 +1468,7 @@
       "timeline": "Idővonal",
       "mergeEditor": "Egyesítésszerkesztő",
       "chat": "Csevegés",
+      "chatAppearance": "Megjelenés",
       "experimental": "Kísérleti",
       "other": "Egyéb"
     },
@@ -1473,6 +1494,24 @@
       "terminalCategory": "Terminál",
       "task": "Feladat"
     },
+    "task.contribution": {
+      "runningTasks": "Futó feladatok megjelenítése",
+      "miRunTask": "Feladat futtatása...",
+      "miRunningTask": "Futó feladatok megjelenítése...",
+      "miRestartTask": "Futó feladat újraindítása...",
+      "miTerminateTask": "Feladat megszakítása...",
+      "miConfigureTask": "Feladatok konfigurálása...",
+      "ShowTasksAction.label": "Futó feladatok megjelenítése",
+      "TerminateAction.label": "Feladat megszakítása"
+    },
+    "taskService": {
+      "TaskSystem.terminateTask": "Feladat megszakítása"
+    },
+    "terminalMenus": {
+      "workbench.action.tasks.runTask": "Feladat futtatása...",
+      "workbench.action.tasks.configureTaskRunner": "Feladatok konfigurálása...",
+      "workbench.action.terminal.runSelectedText": "Kijelölt szöveg futtatása"
+    },
     "viewQuickAccess": {
       "channels": "Kimenet"
     },
@@ -1493,6 +1532,9 @@
     "abstractFileDialogService": {
       "saveAll": "Összes mentése"
     },
+    "callHierarchyTree": {
+      "tree.aria": "Hívási hierarchia"
+    },
     "fileActions.contribution": {
       "miAutoSave": "Automatikus mentés",
       "miNewFile": "Új szöveges fájl",
@@ -1505,7 +1547,9 @@
       "open in integrated terminal": "Megnyitás integrált terminálban"
     },
     "windowActions": {
+      "close": "Ablak bezárása",
       "closeWindow": "Ablak bezárása",
+      "miCloseWindow": "Ablak bezárása",
       "about": "Névjegy",
       "miToggleFullScreen": "Teljes képernyő",
       "zoomReset": "Nagyítás visszaállítása"
@@ -1550,6 +1594,18 @@
       "mSelection": "Kijelölés",
       "mGoto": "Ugrás"
     },
+    "menubar.contribution": {
+      "mSelection": "Kijelölés",
+      "mView": "Nézet",
+      "mTerminal": "Terminál",
+      "mHelp": "Súgó"
+    },
+    "screenshotAnnotation": {
+      "redo": "Újra"
+    },
+    "toggleRenderWhitespace": {
+      "renderWhitespace.selection": "Kijelölés"
+    },
     "dialogHandler": {
       "copy": "Másolás"
     },
@@ -1558,7 +1614,18 @@
       "smartSelect.shrink": "Kijelölés szűkítése"
     },
     "linesOperations": {
+      "miCopyLinesUp": "Sor másolása eggyel feljebb",
+      "miCopyLinesDown": "Sor másolása eggyel lejjebb",
+      "miMoveLinesUp": "Sor feljebb helyezése",
+      "miMoveLinesDown": "Sor lejjebb helyezése",
+      "miDuplicateSelection": "Kijelölés megkettőzése",
       "duplicateSelection": "Kijelölés megkettőzése"
+    },
+    "terminalNotificationHandler": {
+      "terminalNotificationSource": "Terminál"
+    },
+    "searchEditorInput": {
+      "searchTitle": "Keresés"
     },
     "multicursor": {
       "miAddSelectionToNextFindMatch": "Következő előfordulás hozzáadása",
@@ -1567,6 +1634,9 @@
     },
     "tunnelView": {
       "remote.tunnel.protocolHttp": "HTTP"
+    },
+    "typeHierarchyTree": {
+      "tree.aria": "Típushierarchia"
     },
     "keyboardLayoutService": {
       "keyboardConfigurationTitle": "Billentyűzet"

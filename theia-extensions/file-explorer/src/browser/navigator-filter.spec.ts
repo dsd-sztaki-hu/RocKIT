@@ -18,7 +18,7 @@ import { enableJSDOM } from '@theia/core/lib/browser/test/jsdom';
 const disableJSDOM = enableJSDOM();
 
 import { expect } from 'chai';
-import { FileNavigatorFilterPredicate } from './navigator-filter';
+import { FileNavigatorFilterPredicate } from './navigator-filter-predicate';
 
 disableJSDOM();
 

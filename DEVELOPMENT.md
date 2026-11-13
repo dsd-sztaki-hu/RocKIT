@@ -44,6 +44,72 @@ React Grab is disabled by default so it does not intercept normal selection and
 copy shortcuts. Developers can opt in with the
 `rockit.developer.reactGrab.enabled` preference in a development build.
 
+## Running tests
+
+Run tests from the repository root:
+
+    yarn test:unit
+    yarn test:unit --coverage
+    yarn test:integration
+    yarn test:integration --coverage
+    yarn test:integration:mcp
+
+For the crosswalk tests Python dependency is required, yarn doesn’t install Python dependencies. Below is how to run the tests using virtual environment:
+          
+    .\.venv-crosswalk\Scripts\Activate.ps1
+    yarn test:crosswalk
+    deactivate
+
+Unit tests cover isolated logic and components. Integration tests cover RocKIT
+workflows and filesystem boundaries; the MCP command runs its existing protocol
+and lifecycle tests. Coverage commands print a summary table and create HTML
+reports in the corresponding `coverage` directories.
+
+Repository tests are included in `yarn test:unit` and can also be run separately:
+
+    yarn test:data-repository-manager
+    yarn test:repository-plugins
+    yarn --cwd repository-plugins/arp-repository-provider test
+    yarn --cwd repository-plugins/dataverse-repository-provider test
+    yarn --cwd repository-plugins/zenodo-repository-provider test
+
+Package all repository providers as locally installable VSIX files with:
+
+    yarn package:repository-plugins
+
+The packages are written to `dist/repository-plugins`. In RocKIT, open the
+Extensions view, choose **Views > Install from VSIX...**, and select the desired
+file. The provider activates after RocKIT reloads the extension host. Repository
+providers listed in `rockitBundledPlugins` are also staged as built-in
+extensions by `yarn download:plugins` and included in packaged RocKIT builds.
+Both `yarn build:electron` and `yarn rebuild:electron` regenerate these VSIX
+files. A successful package replaces the same-version file and removes older
+versions of that provider from the output directory.
+
+Electron E2E tests use Playwright and require a built application:
+
+    yarn build:electron
+    yarn test:e2e
+
+The E2E commands install Playwright's FFmpeg executable for video recording
+automatically. The first run needs network access; subsequent runs reuse the
+cached executable. A missing FFmpeg executable can leave Electron's window blank.
+
+E2E sessions load only the plugins declared in this checkout's `package.json`,
+copied into a temporary plugin directory. Extra plugins left in `plugins/` by
+another branch are excluded so they cannot affect the tests.
+
+History workflows select Undo and Redo through the command palette so the tests
+work with keyboard layouts such as Hungarian QWERTZ. During test shutdown,
+unsaved changes in temporary workspaces are discarded after assertions and
+failure artifacts have completed.
+
+Use `yarn test:all` for unit, integration, MCP, and crosswalk tests. It does not
+run Electron E2E tests. CI runs the test layers in separate jobs and uploads
+coverage or Playwright failure artifacts. Crosswalk checks require an explicit
+decision for every target field, including an omission with a reason when no
+verified equivalent exists. Crosswalk failures stop the job.
+
 ## Building and packaging the standalone RO-Crate MCP server
 
 The RO-Crate MCP server can be built as a standalone npm CLI package without
