@@ -768,8 +768,8 @@ async function run() {
     )
     assert.match(
       initialize.result.instructions,
-      /offer create_default_rocrate/,
-      'initialize instructions should offer default RO-Crate creation when metadata is missing',
+      /if the target has no ro-crate-metadata\.json, call create_default_rocrate as the first metadata operation[\s\S]*For read-only requests, do not initialize a missing crate/i,
+      'initialize instructions should create missing RO-Crate metadata for authorized write workflows but not read-only requests',
     )
 
     const defaultProfileListingResponse = await request('tools/call', {

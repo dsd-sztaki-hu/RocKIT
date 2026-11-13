@@ -5,9 +5,9 @@ All notable changes to RocKIT will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Changes listed under **Unreleased** are planned for version 1.1.0.
-
 ## [Unreleased]
+
+## [1.1.0] - 2026-11-13
 
 ### Added
 
@@ -17,6 +17,12 @@ Changes listed under **Unreleased** are planned for version 1.1.0.
   when adding a repository.
 - Added a crosswalk registry and default crosswalk definitions for transforming
   metadata during repository operations.
+- Added per-export crosswalk selection and editing, with the selected crosswalk
+  reused for later uploads and synchronization.
+- Added comprehensive Schema.org-to-Dataverse and Schema.org-to-Zenodo
+  crosswalk definitions, including support for compact Schema.org metadata in
+  Dataverse exports.
+- Added repository links to RO-Crates after Zenodo exports and updates.
 - Added progress reporting for repository plugin operations.
 - Added unit, integration, and end-to-end test coverage for repository and
   crosswalk workflows.
@@ -24,6 +30,7 @@ Changes listed under **Unreleased** are planned for version 1.1.0.
 ### Changed
 
 - Upgraded Eclipse Theia from 1.65.2 to 1.76.0.
+- Upgraded ReCrate from 0.1.62 to 0.1.63.
 - Moved repository browsing, import, export, synchronization, linking, update,
   and draft deletion operations into repository provider plugins.
 - Made repository integrations capability-driven so that RocKIT only presents
@@ -58,5 +65,6 @@ Changes listed under **Unreleased** are planned for version 1.1.0.
 This is the baseline release from which the changelog is maintained. For changes
 in this and earlier releases, see the Git history.
 
-[Unreleased]: https://github.com/dsd-sztaki-hu/RocKIT/compare/v1.0.10...HEAD
+[Unreleased]: https://github.com/dsd-sztaki-hu/RocKIT/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/dsd-sztaki-hu/RocKIT/compare/v1.0.10...v1.1.0
 [1.0.10]: https://github.com/dsd-sztaki-hu/RocKIT/releases/tag/v1.0.10
